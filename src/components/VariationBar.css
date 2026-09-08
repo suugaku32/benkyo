@@ -1,0 +1,54 @@
+.variation {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left-width: 4px;
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 13px;
+}
+
+.variation-best {
+  border-left-color: var(--status-good);
+}
+
+.variation-played {
+  border-left-color: var(--status-blunder);
+}
+
+.variation-label {
+  color: var(--dim);
+  font-size: 11px;
+  flex-shrink: 0;
+  min-width: 92px;
+}
+
+.variation-moves {
+  display: flex;
+  gap: 3px;
+  flex-wrap: wrap;
+}
+
+.variation-move {
+  font: inherit;
+  font-size: 13px;
+  background: none;
+  border: none;
+  color: var(--text);
+  padding: 2px 6px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.variation-move:hover {
+  background: var(--surface2);
+}
+
+.variation-move.active {
+  background: var(--surface2);
+  outline: 1px solid var(--accent);
+  font-weight: 600;
+}

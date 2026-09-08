@@ -1,0 +1,74 @@
+.move-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 420px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: 13px;
+}
+
+.move-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--gridline);
+}
+
+.move-row:last-child {
+  border-bottom: none;
+}
+
+.move-row:hover {
+  background: var(--surface2);
+}
+
+.move-row.active {
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+}
+
+.move-row-start {
+  color: var(--dim);
+  font-style: italic;
+}
+
+.move-num {
+  color: var(--dim);
+  min-width: 26px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.move-side {
+  width: 14px;
+}
+
+.move-text {
+  flex: 1;
+  color: var(--text);
+}
+
+.move-score {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  min-width: 44px;
+  text-align: right;
+}
+
+.move-quality {
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.move-refined {
+  color: var(--dim);
+  font-weight: 400;
+}
+
+.move-row.dimmed {
+  opacity: 0.42;
+}

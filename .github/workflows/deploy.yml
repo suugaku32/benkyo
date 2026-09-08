@@ -1,0 +1,59 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Publier sur une branche demande d'écrire dans le dépôt, et plus rien de
+# l'API Pages.
+permissions:
+  contents: write
+
+concurrency:
+  group: pages
+  # Volontairement `false`. Annuler la publication en cours est le bon réflexe
+  # quand elles durent quelques secondes : seule la dernière compte. Mais quand
+  # la file d'attente de GitHub s'allonge, chaque poussée tue la précédente et
+  # plus rien n'aboutit — c'est arrivé plusieurs fois de suite, le site restant
+  # silencieusement en arrière. Mieux vaut une file qui se vide lentement qu'une
+  # file qui se vide dans le néant.
+  cancel-in-progress: false
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
+      # Pourquoi une branche plutôt que l'API Pages : les déploiements créés par
+      # `actions/deploy-pages` restaient indéfiniment sur `deployment_queued`,
+      # sans jamais être pris en charge, et l'action abandonne au bout de dix
+      # minutes — un maximum qu'elle impose et qu'on ne peut pas relever. Publier
+      # sur `gh-pages` emprunte l'autre chaîne de publication, indépendante.
+      #
+      # Pas d'action tierce ici : `git push` suffit, et cela évite d'ajouter un
+      # dépendance de plus à faire confiance dans une chaîne de déploiement.
+      - name: Publier dist/ sur gh-pages
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          # Sans ce marqueur, Pages fait passer le site par Jekyll, qui ignore
+          # les dossiers et fichiers commençant par un souligné.
+          touch dist/.nojekyll
+          cd dist
+          git init -q
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -q -m "Déploiement de ${GITHUB_SHA}"
+          # La branche ne contient que le build : son historique n'a pas de
+          # valeur, on la réécrit à chaque fois.
+          git push -f "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:gh-pages

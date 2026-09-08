@@ -1,0 +1,345 @@
+.app {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 20px 16px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.app-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.app-header h1 {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.app-tagline {
+  font-size: 13px;
+  color: var(--dim);
+  margin-top: 4px;
+}
+
+/* Réglages repliés. Ancrés au coin de l'en-tête, ils n'occupent aucune rangée
+   propre : le bandeau passe de trois barres à une. */
+.options {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.options-toggle {
+  list-style: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.options-toggle::-webkit-details-marker {
+  display: none;
+}
+
+.options[open] .options-toggle {
+  background: var(--surface2);
+}
+
+.options-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+}
+
+.options-panel .btn {
+  width: 100%;
+  text-align: left;
+}
+
+.options-danger {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.banner {
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  border-left: 4px solid var(--dim);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.banner-warn {
+  border-left-color: var(--gold);
+}
+
+.banner-error {
+  border-left-color: var(--accent);
+}
+
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--dim);
+  max-width: 760px;
+}
+
+.progress-bar {
+  height: 8px;
+  background: var(--surface2);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--blue);
+  transition: width 0.2s;
+}
+
+/* Seconde passe : couleur distincte, la barre repart de zéro sur un autre total. */
+.progress-fill.refine {
+  background: var(--gold);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.tabs {
+  display: flex;
+  gap: 6px;
+  background: var(--surface);
+  padding: 4px;
+  border-radius: 10px;
+}
+
+.tab {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  border: none;
+  background: none;
+  color: var(--dim);
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.tab.active {
+  background: var(--surface2);
+  color: var(--text);
+}
+
+.summary {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.summary-card {
+  flex: 1;
+  min-width: 240px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.summary-side {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.summary-stats {
+  display: flex;
+  gap: 14px;
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+
+.summary-stats em {
+  font-style: normal;
+  font-weight: 600;
+}
+
+.analysis-body {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.analysis-side {
+  flex: 1;
+  min-width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ply-nav {
+  display: flex;
+  gap: 6px;
+}
+
+.ply-nav .btn {
+  flex: 1;
+  padding: 8px;
+}
+
+.app-footer {
+  font-size: 11px;
+  color: var(--dim);
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  margin-top: 8px;
+}
+
+.toolbar-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.focus-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--dim);
+}
+
+.focus-control select {
+  font: inherit;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.analysis-board {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.variation-hint {
+  font-size: 11px;
+  color: var(--gold);
+}
+
+.variations {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/*
+ * Sur un écran de téléphone, l'app se lisait de haut en bas sans jamais
+ * s'adapter : titre, accroche, onglets sur trois lignes, actions sur deux
+ * rangées et deux cartes de résumé passaient avant le plateau — environ
+ * 1 150 px à faire défiler avant d'apercevoir une case, en mode entraînement
+ * où seul le plateau compte. Tout ce qui suit ne fait que rendre son rang au
+ * contenu.
+ */
+@media (max-width: 640px) {
+  .app {
+    padding: 10px 10px 24px;
+    gap: 10px;
+  }
+
+  /* Une fois la partie chargée, le titre n'apprend plus rien. */
+  .app-header.compact h1 {
+    font-size: 15px;
+    letter-spacing: 0.5px;
+  }
+
+  .app-header.compact .app-tagline {
+    display: none;
+  }
+
+  /* Les onglets portent déjà les compteurs : ils méritent la pleine largeur,
+     sur une seule ligne. */
+  .tabs {
+    width: 100%;
+  }
+
+  .tabs .tab {
+    flex: 1;
+    padding: 9px 4px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
+  /* Le bouton se réduit à son icône. Il partage la rangée du titre, donc le
+     bandeau ne coûte plus aucune ligne à lui seul. */
+  .options-toggle {
+    padding: 7px 11px;
+    font-size: 15px;
+  }
+
+  .options-word {
+    display: none;
+  }
+
+  .options-panel {
+    min-width: 0;
+    width: calc(100vw - 28px);
+    max-width: 300px;
+  }
+
+  .focus-control {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    font-size: 12px;
+  }
+
+  .summary {
+    gap: 6px;
+  }
+
+  .summary-card {
+    min-width: 0;
+    flex-basis: 100%;
+    padding: 7px 10px;
+    gap: 2px;
+  }
+
+  .app-footer {
+    font-size: 10px;
+  }
+}

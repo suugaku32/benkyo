@@ -1,0 +1,84 @@
+.eval-graph {
+  position: relative;
+  width: 100%;
+  max-width: 760px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 8px 4px;
+}
+
+.eval-graph-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--dim);
+  padding: 0 4px;
+}
+
+.eval-graph-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  cursor: crosshair;
+  overflow: visible;
+}
+
+.eval-baseline {
+  stroke: var(--baseline);
+  stroke-width: 1;
+}
+
+.eval-crosshair {
+  stroke: var(--dim);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.eval-cursor-dot {
+  fill: var(--surface);
+  stroke: var(--text);
+  stroke-width: 1.5;
+}
+
+.eval-tooltip {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  font-size: 12px;
+  padding: 4px 6px 6px;
+  color: var(--text);
+  flex-wrap: wrap;
+}
+
+.eval-tooltip-ply {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.eval-tooltip-score {
+  font-variant-numeric: tabular-nums;
+}
+
+.eval-tooltip-quality {
+  font-weight: 600;
+}
+
+.eval-legend {
+  display: flex;
+  gap: 14px;
+  font-size: 11px;
+  color: var(--text);
+  padding: 0 6px 6px;
+  flex-wrap: wrap;
+}
+
+.eval-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.eval-area {
+  fill-opacity: var(--area-opacity, 0.18);
+}

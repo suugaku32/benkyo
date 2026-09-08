@@ -1,0 +1,223 @@
+.training {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.training-empty {
+  padding: 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--dim);
+}
+
+.training-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.training-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+/*
+ * Le compteur était un simple texte : pour atteindre la 7e gaffe il fallait
+ * sept appuis sur « suivante », sans jamais savoir ce qui attendait. Un
+ * `<select>` natif — et non un menu maison — parce que sur iPhone il ouvre la
+ * roulette du système, qui se manipule mieux au pouce que tout ce qu'on
+ * dessinerait.
+ */
+.picker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.picker-label {
+  font-weight: 700;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.picker select {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 8px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.training-solved {
+  font-size: 12px;
+  color: var(--dim);
+}
+
+.training-nav {
+  display: flex;
+  gap: 8px;
+}
+
+.training-prompt {
+  font-size: 14px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+
+.training-body {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+/*
+ * Sur téléphone, le panneau latéral passe sous le plateau. Il vivait ~600 px
+ * plus bas, ce qui imposait un aller-retour de défilement à chaque coup ; une
+ * fois le bandeau du haut dégraissé, il remonte à 746 px et tient dans l'écran
+ * sans rien coller.
+ *
+ * `position: sticky; bottom: 0` avait été essayé et retiré : un élément collant
+ * en bas est tiré hors de son flux et recouvre ce qui le précède — en
+ * l'occurrence la main de Sente, c'est-à-dire les pièces à poser. Masquer une
+ * cible tactile pour épargner un demi-écran de défilement est un mauvais
+ * échange.
+ */
+@media (max-width: 640px) {
+  .training {
+    gap: 8px;
+  }
+
+  /* Compteur et navigation tenaient sur deux lignes ; réduits à leurs chevrons,
+     les boutons rentrent à côté du compteur. Les libellés partent dans
+     `aria-label`, donc rien n'est perdu pour un lecteur d'écran. */
+  .training-head {
+    gap: 8px;
+    flex-wrap: nowrap;
+  }
+
+  .training-nav .btn {
+    padding: 8px 14px;
+    font-size: 15px;
+    line-height: 1;
+  }
+
+  .nav-word {
+    display: none;
+  }
+
+  /* Le sélecteur prend la place restante ; le décompte « n résolue(s) » passe
+     à la trappe, l'option cochée le dit déjà. */
+  .picker {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .picker select {
+    flex: 1;
+    min-width: 0;
+    font-size: 12px;
+  }
+
+  .training-solved {
+    display: none;
+  }
+
+  .training-prompt {
+    font-size: 13px;
+    padding: 8px 10px;
+  }
+
+  .training-body {
+    gap: 8px;
+  }
+
+  .training-side {
+    min-width: 0;
+    width: 100%;
+    gap: 6px;
+    padding-top: 6px;
+  }
+}
+
+.training-side {
+  flex: 1;
+  min-width: 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.training-hint {
+  font-size: 13px;
+  color: var(--dim);
+}
+
+.promo-prompt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface2);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+
+.verdict {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  border-left: 4px solid var(--dim);
+  background: var(--surface);
+}
+
+.verdict-correct {
+  border-left-color: var(--status-good);
+}
+
+.verdict-wrong {
+  border-left-color: var(--status-blunder);
+}
+
+.verdict-revealed {
+  border-left-color: var(--gold);
+}
+
+.verdict strong {
+  font-size: 15px;
+}
+
+.training-board {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.training-played {
+  color: var(--status-blunder);
+}
+
+.training-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}

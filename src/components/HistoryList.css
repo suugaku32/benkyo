@@ -1,0 +1,106 @@
+.history {
+  width: 100%;
+  max-width: 760px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.history-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.history-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.history-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.history-item {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.history-open {
+  flex: 1;
+  font: inherit;
+  text-align: left;
+  background: var(--surface2);
+  border: none;
+  border-radius: 8px;
+  padding: 7px 10px;
+  cursor: pointer;
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.history-open:hover {
+  filter: brightness(1.15);
+}
+
+.history-players {
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-vs {
+  color: var(--dim);
+  font-weight: 400;
+}
+
+.history-meta {
+  font-size: 11px;
+  color: var(--dim);
+}
+
+.history-meta em {
+  font-style: normal;
+  font-weight: 600;
+}
+
+.history-delete {
+  font: inherit;
+  font-size: 18px;
+  line-height: 1;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--dim);
+  cursor: pointer;
+  padding: 0 10px;
+  flex-shrink: 0;
+}
+
+.history-delete:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.history-note {
+  font-size: 11px;
+  color: var(--dim);
+}

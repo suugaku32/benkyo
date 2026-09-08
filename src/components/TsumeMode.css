@@ -1,0 +1,70 @@
+/* Le mode tsume réutilise la mise en page de l'entraînement (.training-*) et
+   n'ajoute ici que ce qui lui est propre. */
+
+.tsume-count {
+  color: var(--accent);
+}
+
+.tsume-found {
+  color: var(--status-good);
+}
+
+.tsume-missed {
+  color: var(--status-blunder);
+}
+
+/* Raccourcir le tsume : un mat en 13 se résout mal d'un bloc, ses derniers
+   demi-coups sont un exercice à part entière. */
+.tsume-shorten {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+}
+
+.tsume-shorten label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 220px;
+}
+
+.tsume-shorten-label {
+  font-size: 12px;
+  color: var(--dim);
+  flex-shrink: 0;
+}
+
+.tsume-shorten input[type='range'] {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--accent);
+  /* Une piste fine se rate au doigt ; on élargit la zone de saisie. */
+  height: 28px;
+}
+
+.tsume-shorten output {
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.tsume-span {
+  margin: -2px 0 4px;
+  padding-left: 2px;
+}
+
+.tsume-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tsume-note {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--dim);
+  margin: 0;
+}
