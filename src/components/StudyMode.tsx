@@ -104,6 +104,8 @@ export function StudyMode({
   >(null);
   const [errorSquare, setErrorSquare] = useState<Square | null>(null);
   const [promptPromotion, setPromptPromotion] = useState<{ from: Square; to: Square } | null>(null);
+  /** Le coup tenté, joué sur le plateau pendant que le moteur l'évalue. */
+  const [proposedUsi, setProposedUsi] = useState<string | null>(null);
   const [altAnalyzing, setAltAnalyzing] = useState(false);
   const [altError, setAltError] = useState<string | null>(null);
 
@@ -125,6 +127,7 @@ export function StudyMode({
     setSelected(null);
     setErrorSquare(null);
     setPromptPromotion(null);
+    setProposedUsi(null);
     setAltError(null);
   }, [idx, side]);
 
@@ -187,6 +190,24 @@ export function StudyMode({
       from: current.moveUsi.includes('*') ? null : usiToSquare(current.moveUsi.slice(0, 2)),
       to: usiToSquare(current.moveUsi.slice(2, 4)),
     };
+    // Le coup proposé est rejoué sur le plateau dès qu'on le sélectionne : sans
+    // ça, indiquer une case ne se distingue pas visuellement de l'avoir jouée.
+    let proposedPosition: Position | null = null;
+    let proposedLastMove: { from: Square | null; to: Square } | null = null;
+    if (proposedUsi) {
+      try {
+        const p = Position.fromSfen(current.sfenBefore);
+        p.applyUsiMove(proposedUsi);
+        proposedPosition = p;
+        proposedLastMove = {
+          from: proposedUsi.includes('*') ? null : usiToSquare(proposedUsi.slice(0, 2)),
+          to: usiToSquare(proposedUsi.slice(2, 4)),
+        };
+      } catch {
+        proposedPosition = null;
+        proposedLastMove = null;
+      }
+    }
     const judgment = judgments.get(current.ply) ?? null;
     const match = judgment ? matchFor(judgment, current.quality) : null;
     const isLast = idx >= sidePlies.length - 1;
@@ -205,11 +226,15 @@ export function StudyMode({
       });
       setPendingLevel(null);
       setSelected(null);
+      setProposedUsi(null);
     };
 
     const chooseLevel = (level: UserLevel) => {
       if (level === 'good') finalize({ level });
-      else setPendingLevel(level);
+      else {
+        setPendingLevel(level);
+        setProposedUsi(null);
+      }
     };
 
     const legalMoves = isProposing ? generateLegalMoves(positionBefore, positionBefore.turn) : [];
@@ -229,6 +254,9 @@ export function StudyMode({
 
     const submitAlt = async (usi: string) => {
       if (!pendingLevel) return;
+      // Joué tout de suite sur le plateau : indiquer une case sans que la pièce
+      // ne s'y déplace ne se lit pas comme un coup joué.
+      setProposedUsi(usi);
       setAltAnalyzing(true);
       setAltError(null);
       try {
@@ -239,6 +267,9 @@ export function StudyMode({
         const altCp = -scoreToCp(res.scoreCp, res.scoreMate);
         finalize({ level: pendingLevel, altMove: usi, altCp });
       } catch (e) {
+        // Échec de l'analyse : le coup tenté redevient un coup à choisir, pas
+        // un coup resté joué sans verdict.
+        setProposedUsi(null);
         setAltError((e as Error).message);
       } finally {
         setAltAnalyzing(false);
@@ -359,15 +390,15 @@ export function StudyMode({
         <p className="study-prompt">
           Coup {current.ply} — <strong>{sideLabel(side)}</strong> joue{' '}
           <strong>{moveLabels[current.ply - 1]}</strong>.
-          {isProposing && ' Sélectionnez le coup que vous auriez joué à la place.'}
+          {isProposing && !proposedUsi && ' Sélectionnez le coup que vous auriez joué à la place.'}
         </p>
 
         <div className="study-body">
           <div className="study-board">
             <Board
-              position={isProposing ? positionBefore : positionAfter}
-              lastMove={isProposing ? null : playedLastMove}
-              interactive={isProposing && !promptPromotion && !altAnalyzing}
+              position={isProposing ? proposedPosition ?? positionBefore : positionAfter}
+              lastMove={isProposing ? proposedLastMove : playedLastMove}
+              interactive={isProposing && !proposedUsi && !promptPromotion && !altAnalyzing}
               selected={isProposing ? selected : undefined}
               legalDestinations={isProposing ? destinations() : undefined}
               errorSquare={isProposing ? errorSquare : undefined}
