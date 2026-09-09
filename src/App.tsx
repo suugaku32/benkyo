@@ -30,6 +30,7 @@ import { usiToSquare } from './shogi/types';
 import { loadSettings, saveSettings } from './storage/settings';
 import { THEMES, THEME_LABEL_FR, applyTheme, loadTheme } from './theme';
 import type { Theme } from './theme';
+import { useWakeLock } from './useWakeLock';
 import './App.css';
 
 type Tab = 'analysis' | 'training' | 'tsume';
@@ -71,6 +72,8 @@ export default function App() {
   const engineRef = useRef<UsiEngine | null>(null);
   const optionsRef = useRef<HTMLDetailsElement>(null);
   const [theme, setTheme] = useState<Theme>(() => loadTheme());
+
+  useWakeLock();
 
   // Nouvelle analyse (ou partie rechargée depuis l'historique) : la courbe
   // redevient un spoiler tant qu'on ne l'a pas révélée pour cette partie-là.
