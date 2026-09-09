@@ -1,0 +1,210 @@
+.study {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.study-pick {
+  padding: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  gap: 16px;
+}
+
+.study-intro {
+  color: var(--dim);
+  font-size: 14px;
+  max-width: 60ch;
+}
+
+.study-pick-buttons {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.study-empty {
+  padding: 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--dim);
+}
+
+.study-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.study-nav {
+  display: flex;
+  gap: 8px;
+}
+
+.study-prompt {
+  font-size: 14px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+
+.study-body {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.study-board {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.study-side {
+  flex: 1;
+  min-width: 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.study-mark-active {
+  background: var(--status-blunder);
+  border-color: var(--status-blunder);
+  color: #fff;
+}
+
+.study-hint {
+  font-size: 13px;
+  color: var(--dim);
+}
+
+.study-verdict {
+  font-size: 14px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+
+.study-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.study-row {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.study-row-main {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.study-row-icon {
+  width: 1.2em;
+  text-align: center;
+  font-weight: 700;
+}
+
+.study-row-hit .study-row-icon {
+  color: var(--status-good);
+}
+
+.study-row-miss .study-row-icon {
+  color: var(--status-blunder);
+}
+
+.study-row-false-alarm .study-row-icon {
+  color: var(--status-inaccuracy);
+}
+
+.study-row-quiet .study-row-icon {
+  color: var(--dim);
+}
+
+.study-row-move {
+  flex: 1;
+  min-width: 0;
+}
+
+.study-row-label {
+  font-size: 12px;
+  color: var(--dim);
+}
+
+.study-row-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 12px 10px 34px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.study-result-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+  .study-head {
+    gap: 8px;
+    flex-wrap: nowrap;
+  }
+
+  .study-nav .btn {
+    padding: 8px 14px;
+    font-size: 15px;
+    line-height: 1;
+  }
+
+  .picker {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .picker select {
+    flex: 1;
+    min-width: 0;
+    font-size: 12px;
+  }
+
+  .study-prompt {
+    font-size: 13px;
+    padding: 8px 10px;
+  }
+
+  .study-body {
+    gap: 8px;
+  }
+
+  .study-side {
+    min-width: 0;
+    width: 100%;
+    gap: 6px;
+    padding-top: 6px;
+  }
+}

@@ -4,6 +4,7 @@ import type { BoardArrow } from './components/Board';
 import { EvalGraph } from './components/EvalGraph';
 import { KifuInput } from './components/KifuInput';
 import { MoveList } from './components/MoveList';
+import { StudyMode } from './components/StudyMode';
 import { TrainingMode } from './components/TrainingMode';
 import { TsumeMode } from './components/TsumeMode';
 import { VariationBar } from './components/VariationBar';
@@ -33,7 +34,7 @@ import type { Theme } from './theme';
 import { useWakeLock } from './useWakeLock';
 import './App.css';
 
-type Tab = 'analysis' | 'training' | 'tsume';
+type Tab = 'analysis' | 'training' | 'tsume' | 'study';
 
 type Phase =
   | { kind: 'input' }
@@ -516,6 +517,12 @@ export default function App() {
               >
                 Tsume ({focusedTsumes.length})
               </button>
+              <button
+                className={`tab${tab === 'study' ? ' active' : ''}`}
+                onClick={() => setTab('study')}
+              >
+                Étude
+              </button>
             </div>
           </div>
 
@@ -681,11 +688,19 @@ export default function App() {
               blackName={game.black}
               whiteName={game.white}
             />
-          ) : (
+          ) : tab === 'tsume' ? (
             <TsumeMode
               tsumes={focusedTsumes}
               ensureEngine={ensureEngine}
               movetimeMs={deepMovetimeMs > 0 ? deepMovetimeMs : movetimeMs}
+              flipped={flipped}
+              blackName={game.black}
+              whiteName={game.white}
+            />
+          ) : (
+            <StudyMode
+              plies={result.plies}
+              moveLabels={moveLabels}
               flipped={flipped}
               blackName={game.black}
               whiteName={game.white}
