@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { BoardArrow } from './components/Board';
 import { EvalGraph } from './components/EvalGraph';
-import { ExploreBoard } from './components/ExploreBoard';
+import { ExploreBoard, ExploreSettings } from './components/ExploreBoard';
 import { KifuInput } from './components/KifuInput';
 import { MoveList } from './components/MoveList';
 import { StudyMode } from './components/StudyMode';
@@ -63,13 +63,9 @@ export default function App() {
   const [focusSide, setFocusSide] = useState<'both' | 'b' | 'w'>(initialSettings.focusSide);
   /** Temps de réflexion du moteur dans le plateau d'exploration — pas persisté : chaque session repart à 1 s. */
   const [replyMs, setReplyMs] = useState(1000);
-  /*
-   * Le moteur répond-il aux coups joués sur le plateau d'analyse ? Décoché, les
-   * deux camps se jouent à la main : c'est ce qu'il faut pour dérouler une idée
-   * à soi, ou rejouer une variante lue ailleurs, sans qu'un adversaire s'invite
-   * à chaque coup.
-   */
-  const [autoReply, setAutoReply] = useState(true);
+  /** Flèche du coup conseillé dans une variante explorée, cherchée en direct, par camp. */
+  const [exploreArrowB, setExploreArrowB] = useState(true);
+  const [exploreArrowW, setExploreArrowW] = useState(true);
   /*
    * Sous le plateau se suivaient la liste des coups et les réglages
    * d'exploration — de quoi faire défiler l'écran pour retrouver une
@@ -609,8 +605,8 @@ export default function App() {
                       blackName={game.black}
                       whiteName={game.white}
                       replyMs={replyMs}
-                      autoReply={autoReply}
-                      showArrow={showBestArrow}
+                      showArrowB={exploreArrowB}
+                      showArrowW={exploreArrowW}
                       onBranchStart={() => setPanel('explore')}
                     />
                   )}
@@ -728,29 +724,17 @@ export default function App() {
 
                   <div className={`analysis-panel panel-explore${panel === 'explore' ? ' active' : ''}`}>
                     <p className="explore-hint">
-                      Jouez un coup sur le plateau pour ouvrir une variante.{' '}
-                      {autoReply
-                        ? 'Le moteur répondra, et la partie reprendra son cours au coup suivant.'
-                        : 'Vous jouez les deux camps ; la partie reprendra son cours au coup suivant.'}
+                      Jouez un coup sur le plateau pour ouvrir une variante. Vous jouez les deux
+                      camps ; la partie reprendra son cours au coup suivant.
                     </p>
-                    <button
-                      className="btn btn-ghost"
-                      onClick={() => setAutoReply((v) => !v)}
-                      title="Coché, le moteur répond à vos coups joués sur le plateau d'analyse"
-                    >
-                      {autoReply ? '🤖 Moteur : répond' : '🤖 Moteur : coupé'}
-                    </button>
-                    <label className="focus-control">
-                      Temps de réflexion
-                      <select value={replyMs} onChange={(e) => setReplyMs(Number(e.target.value))}>
-                        <option value={200}>200 ms</option>
-                        <option value={500}>500 ms</option>
-                        <option value={1000}>1 s</option>
-                        <option value={2000}>2 s</option>
-                        <option value={5000}>5 s</option>
-                        <option value={10000}>10 s</option>
-                      </select>
-                    </label>
+                    <ExploreSettings
+                      replyMs={replyMs}
+                      onReplyMs={setReplyMs}
+                      showArrowB={exploreArrowB}
+                      onShowArrowB={setExploreArrowB}
+                      showArrowW={exploreArrowW}
+                      onShowArrowW={setExploreArrowW}
+                    />
                   </div>
                 </div>
               </div>

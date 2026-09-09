@@ -48,3 +48,53 @@
   gap: 6px;
   flex-wrap: wrap;
 }
+
+.explore-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* La case à cocher qui décide si la flèche du coup conseillé apparaît pour ce camp. */
+.explore-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.explore-toggle input {
+  accent-color: var(--accent);
+  /* 13 px de case à cocher se ratent au doigt. */
+  width: 18px;
+  height: 18px;
+}
+
+.explore-time {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--dim);
+}
+
+.explore-time input[type='range'] {
+  flex: 1;
+  min-width: 80px;
+  accent-color: var(--accent);
+}
+
+.explore-time output {
+  font-variant-numeric: tabular-nums;
+  min-width: 46px;
+  text-align: right;
+  color: var(--text);
+}
+
+@media (pointer: coarse) {
+  .explore-time input[type='range'] {
+    height: 28px;
+  }
+}

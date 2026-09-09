@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Board } from './Board';
-import { ExploreBoard } from './ExploreBoard';
+import { ExploreBoard, ExploreSettings } from './ExploreBoard';
 import type { PlyEval } from '../analysis/analyze';
 import { QUALITY_COLOR, QUALITY_LABEL_FR, scoreToCp } from '../analysis/classify';
 import type { MoveQuality } from '../analysis/classify';
@@ -111,7 +111,9 @@ export function StudyMode({
   const [altError, setAltError] = useState<string | null>(null);
   /** Plateau d'exploration libre sur la position affichée, à tout moment. */
   const [exploring, setExploring] = useState(false);
-  const [exploreAutoReply, setExploreAutoReply] = useState(true);
+  const [exploreReplyMs, setExploreReplyMs] = useState(1000);
+  const [exploreArrowB, setExploreArrowB] = useState(true);
+  const [exploreArrowW, setExploreArrowW] = useState(true);
 
   // Une nouvelle analyse (ou une partie rechargée) repart de zéro : les
   // jugements d'une étude précédente n'ont plus de sens sur une autre partie.
@@ -412,13 +414,6 @@ export function StudyMode({
         {exploring ? (
           <div className="study-explore">
             <div className="study-explore-head">
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={() => setExploreAutoReply((v) => !v)}
-              >
-                {exploreAutoReply ? '🤖 Moteur : répond' : '🤖 Moteur : coupé'}
-              </button>
               <button type="button" className="btn btn-primary" onClick={() => setExploring(false)}>
                 ✕ Fermer l'exploration
               </button>
@@ -429,9 +424,17 @@ export function StudyMode({
               flipped={flipped}
               blackName={blackName}
               whiteName={whiteName}
-              replyMs={movetimeMs}
-              autoReply={exploreAutoReply}
-              showArrow={false}
+              replyMs={exploreReplyMs}
+              showArrowB={exploreArrowB}
+              showArrowW={exploreArrowW}
+            />
+            <ExploreSettings
+              replyMs={exploreReplyMs}
+              onReplyMs={setExploreReplyMs}
+              showArrowB={exploreArrowB}
+              onShowArrowB={setExploreArrowB}
+              showArrowW={exploreArrowW}
+              onShowArrowW={setExploreArrowW}
             />
           </div>
         ) : (
