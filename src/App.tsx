@@ -53,6 +53,7 @@ export default function App() {
   const [phase, setPhase] = useState<Phase>({ kind: 'input' });
   const [game, setGame] = useState<ParsedGame | null>(null);
   const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [graphRevealed, setGraphRevealed] = useState(false);
   const [currentPly, setCurrentPly] = useState(0);
   const [tab, setTab] = useState<Tab>('analysis');
   const [flipped, setFlipped] = useState(initialSettings.flipped);
@@ -70,6 +71,12 @@ export default function App() {
   const engineRef = useRef<UsiEngine | null>(null);
   const optionsRef = useRef<HTMLDetailsElement>(null);
   const [theme, setTheme] = useState<Theme>(() => loadTheme());
+
+  // Nouvelle analyse (ou partie rechargée depuis l'historique) : la courbe
+  // redevient un spoiler tant qu'on ne l'a pas révélée pour cette partie-là.
+  useEffect(() => {
+    setGraphRevealed(false);
+  }, [result]);
 
   useEffect(() => {
     applyTheme(theme);
@@ -539,13 +546,24 @@ export default function App() {
 
           {tab === 'analysis' ? (
             <>
-              <EvalGraph
-                evalCurve={result.evalCurve}
-                plies={focusedPlies}
-                moveLabels={moveLabels}
-                currentPly={currentPly}
-                onSelectPly={selectPly}
-              />
+              <div className={`eval-graph-spoiler${graphRevealed ? ' revealed' : ''}`}>
+                <EvalGraph
+                  evalCurve={result.evalCurve}
+                  plies={focusedPlies}
+                  moveLabels={moveLabels}
+                  currentPly={currentPly}
+                  onSelectPly={selectPly}
+                />
+                {!graphRevealed && (
+                  <button
+                    type="button"
+                    className="btn btn-primary eval-graph-reveal"
+                    onClick={() => setGraphRevealed(true)}
+                  >
+                    👁 Afficher la courbe d'évaluation
+                  </button>
+                )}
+              </div>
               <div className="analysis-body">
                 <div className="analysis-board">
                   {shownPosition && (

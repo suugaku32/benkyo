@@ -194,6 +194,28 @@
   font-weight: 600;
 }
 
+/* Tant que la courbe n'a pas été révélée, elle reste floutée et hors des
+   interactions (survol, clic) : sinon la crosshair et l'infobulle en dessous
+   trahiraient l'évaluation avant même le clic sur le bouton. */
+.eval-graph-spoiler {
+  position: relative;
+}
+
+.eval-graph-spoiler:not(.revealed) > .eval-graph {
+  filter: blur(14px);
+  pointer-events: none;
+  user-select: none;
+}
+
+.eval-graph-reveal {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  white-space: nowrap;
+  z-index: 1;
+}
+
 .analysis-body {
   display: flex;
   gap: 20px;
