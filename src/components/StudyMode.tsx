@@ -124,9 +124,14 @@ export function StudyMode({
 
   const sidePlies = useMemo(() => plies.filter((p) => p.color === side), [plies, side]);
 
-  // Changer de coup annule toute proposition en cours : elle n'a de sens que
-  // pour le coup affiché au moment où elle a été demandée.
-  useEffect(() => {
+  /**
+   * Annule toute proposition en cours : elle n'a de sens que pour le coup
+   * affiché au moment où elle a été demandée. Exposée à part de l'effet ci-
+   * dessous : sauter sur la miniature d'un coup déjà affiché (`idx` inchangé)
+   * ne déclenche pas l'effet, alors qu'une proposition abandonnée en route
+   * vers le bilan doit tout de même être nettoyée en y revenant.
+   */
+  const resetProposalState = () => {
     setPendingLevel(null);
     setSelected(null);
     setErrorSquare(null);
@@ -134,7 +139,11 @@ export function StudyMode({
     setProposedUsi(null);
     setAltError(null);
     setExploring(false);
-  }, [idx, side]);
+  };
+
+  // Changer de coup annule toute proposition en cours : elle n'a de sens que
+  // pour le coup affiché au moment où elle a été demandée.
+  useEffect(resetProposalState, [idx, side]);
 
   const sideLabel = (c: Color) => (c === 'b' ? `▲ ${blackName || 'Sente'}` : `△ ${whiteName || 'Gote'}`);
 
@@ -219,8 +228,10 @@ export function StudyMode({
     const isProposing = pendingLevel !== null;
 
     const advance = () => {
-      if (isLast) setPhase('result');
-      else goTo(idx + 1);
+      if (isLast) {
+        resetProposalState();
+        setPhase('result');
+      } else goTo(idx + 1);
     };
 
     const finalize = (j: Judgment) => {
@@ -398,16 +409,6 @@ export function StudyMode({
           {isProposing && !proposedUsi && ' Sélectionnez le coup que vous auriez joué à la place.'}
         </p>
 
-        {/*
-          Disponible à tout moment — avant ou après avoir jugé — sauf en
-          pleine proposition d'un coup, où le plateau sert déjà à autre chose.
-        */}
-        {!isProposing && !exploring && (
-          <button type="button" className="btn btn-ghost" onClick={() => setExploring(true)}>
-            🧭 Explorer cette position
-          </button>
-        )}
-
         {exploring ? (
           <div className="study-explore">
             <div className="study-explore-head">
@@ -523,9 +524,25 @@ export function StudyMode({
                 </button>
               </>
             )}
-            <button className="btn btn-ghost" onClick={() => setPhase('result')}>
+            <button
+              className="btn btn-ghost"
+              onClick={() => {
+                resetProposalState();
+                setPhase('result');
+              }}
+            >
               Voir le bilan à tout moment
             </button>
+            {/*
+              Disponible à tout moment — avant ou après avoir jugé — sauf en
+              pleine proposition d'un coup, où le plateau sert déjà à autre
+              chose.
+            */}
+            {!isProposing && (
+              <button type="button" className="btn btn-ghost" onClick={() => setExploring(true)}>
+                🧭 Explorer cette position
+              </button>
+            )}
           </div>
         </div>
         )}
@@ -581,8 +598,19 @@ export function StudyMode({
                 <div className="study-row-detail">
                   {/* Le texte seul (« 3. 2六歩 ») ne dit rien de la position : on
                       montre le plateau au moment du coup, pas seulement sa
-                      notation. */}
-                  <div className="study-row-board">
+                      notation. Cliquer la miniature reprend l'étude à ce
+                      coup précis, plutôt que de n'en garder qu'un aperçu. */}
+                  <button
+                    type="button"
+                    className="study-row-board"
+                    title="Revenir à cette position"
+                    onClick={() => {
+                      resetProposalState();
+                      const i = sidePlies.findIndex((sp) => sp.ply === p.ply);
+                      if (i >= 0) setIdx(i);
+                      setPhase('review');
+                    }}
+                  >
                     <Board
                       position={Position.fromSfen(p.sfenAfter)}
                       lastMove={{
@@ -594,7 +622,7 @@ export function StudyMode({
                       whiteName={whiteName}
                       cellSize={32}
                     />
-                  </div>
+                  </button>
                   <div className="study-row-text">
                     {judgment && (
                       <span style={{ color: LEVEL_COLOR[judgment.level] }}>
@@ -623,6 +651,15 @@ export function StudyMode({
       </ol>
 
       <div className="study-result-actions">
+        <button
+          className="btn btn-primary"
+          onClick={() => {
+            resetProposalState();
+            setPhase('review');
+          }}
+        >
+          ← Retour à l'étude
+        </button>
         <button className="btn btn-ghost" onClick={() => setPhase('pick')}>
           ← Changer de camp
         </button>

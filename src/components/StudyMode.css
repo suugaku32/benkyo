@@ -258,6 +258,16 @@
 
 .study-row-board {
   display: flex;
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.study-row-board:hover {
+  outline: 2px solid var(--border);
 }
 
 .study-row-text {
