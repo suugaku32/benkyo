@@ -424,7 +424,7 @@ export function StudyMode({
               </button>
             </div>
             <ExploreBoard
-              baseSfen={positionAfter.toSfen()}
+              baseSfen={positionBefore.toSfen()}
               ensureEngine={ensureEngine}
               flipped={flipped}
               blackName={blackName}
@@ -473,8 +473,11 @@ export function StudyMode({
                   </p>
                 )}
                 {!altAnalyzing && !promptPromotion && (
-                  <button className="btn btn-ghost" onClick={() => setPendingLevel(null)}>
-                    Ne pas proposer de coup
+                  <button
+                    className="btn btn-ghost"
+                    onClick={() => finalize({ level: pendingLevel! })}
+                  >
+                    Juger sans proposer de coup
                   </button>
                 )}
               </div>
