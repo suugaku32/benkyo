@@ -42,16 +42,13 @@ type Phase =
   | { kind: 'done' };
 
 const PHASE_LABEL: Record<AnalysisPhase, string> = {
-  scan: 'Balayage de la partie',
-  refine: 'Étude des coups suspects',
-  tsume: 'Vérification des mats',
+  scan: 'Analyse de la partie',
 };
 
 export default function App() {
   const [kifuText, setKifuText] = useState('');
   const [initialSettings] = useState(loadSettings);
   const [movetimeMs, setMovetimeMs] = useState(initialSettings.movetimeMs);
-  const [deepMovetimeMs, setDeepMovetimeMs] = useState(initialSettings.deepMovetimeMs);
   const [phase, setPhase] = useState<Phase>({ kind: 'input' });
   const [game, setGame] = useState<ParsedGame | null>(null);
   const [result, setResult] = useState<AnalysisResult | null>(null);
@@ -114,11 +111,6 @@ export default function App() {
   const changeMovetime = useCallback((ms: number) => {
     setMovetimeMs(ms);
     saveSettings({ movetimeMs: ms });
-  }, []);
-
-  const changeDeepMovetime = useCallback((ms: number) => {
-    setDeepMovetimeMs(ms);
-    saveSettings({ deepMovetimeMs: ms });
   }, []);
 
   /*
@@ -191,14 +183,13 @@ export default function App() {
         const engine = await ensureEngine();
         const res = await analyzeGame(engine, parsed.startSfen, parsed.moves, {
           movetimeMs,
-          deepMovetimeMs,
           onProgress: (step, done, total) => setPhase({ kind: 'analyzing', step, done, total }),
         });
         setResult(res);
         setPhase({ kind: 'done' });
         // Une analyse coûte des dizaines de secondes : la conserver évite de la
         // refaire pour revoir une partie.
-        const saved = saveGame(parsed, res, movetimeMs, deepMovetimeMs);
+        const saved = saveGame(parsed, res, movetimeMs);
         setHistory(listHistory());
         setHistoryNote(saved.reason ?? null);
       } catch (e) {
@@ -206,7 +197,7 @@ export default function App() {
         setPhase({ kind: 'input' });
       }
     },
-    [movetimeMs, deepMovetimeMs, ensureEngine],
+    [movetimeMs, ensureEngine],
   );
 
   const runAnalysis = useCallback(async () => {
@@ -251,7 +242,6 @@ export default function App() {
     setGame(loaded.game);
     setResult(loaded.result);
     setMovetimeMs(loaded.movetimeMs);
-    setDeepMovetimeMs(loaded.deepMovetimeMs);
     setCurrentPly(0);
     setVariation(null);
     setTab('analysis');
@@ -408,7 +398,7 @@ export default function App() {
                 {/* La cadence est ici, et pas seulement sur l'écran de saisie :
                     sans elle, « réanalyser » referait exactement la même chose. */}
                 <label className="focus-control">
-                  Balayage
+                  Temps d'analyse
                   <select
                     value={movetimeMs}
                     onChange={(e) => changeMovetime(Number(e.target.value))}
@@ -417,18 +407,9 @@ export default function App() {
                     <option value={200}>200 ms</option>
                     <option value={400}>400 ms</option>
                     <option value={800}>800 ms</option>
-                  </select>
-                </label>
-                <label className="focus-control">
-                  Étude des gaffes
-                  <select
-                    value={deepMovetimeMs}
-                    onChange={(e) => changeDeepMovetime(Number(e.target.value))}
-                  >
-                    <option value={0}>désactivée</option>
-                    <option value={1000}>1 s</option>
-                    <option value={2000}>2 s</option>
-                    <option value={4000}>4 s</option>
+                    <option value={1500}>1,5 s</option>
+                    <option value={3000}>3 s</option>
+                    <option value={6000}>6 s</option>
                   </select>
                 </label>
                 <button className="btn btn-primary" onClick={reanalyse}>
@@ -468,8 +449,6 @@ export default function App() {
           onAnalyze={runAnalysis}
           movetimeMs={movetimeMs}
           onMovetimeChange={changeMovetime}
-          deepMovetimeMs={deepMovetimeMs}
-          onDeepMovetimeChange={changeDeepMovetime}
           disabled={phase.kind === 'analyzing' || env.blocking}
         />
       )}
@@ -496,13 +475,12 @@ export default function App() {
         <div className="progress">
           <div className="progress-bar">
             <div
-              className={`progress-fill${phase.step === 'refine' ? ' refine' : ''}`}
+              className="progress-fill"
               style={{ width: `${Math.round((phase.done / phase.total) * 100)}%` }}
             />
           </div>
           <span>
             {PHASE_LABEL[phase.step]} — {phase.done} / {phase.total} positions
-            {phase.step === 'scan' && deepMovetimeMs > 0 && ' (passe 1 sur 2)'}
           </span>
         </div>
       )}
@@ -743,7 +721,7 @@ export default function App() {
             <TrainingMode
               blunders={focusedBlunders}
               ensureEngine={ensureEngine}
-              movetimeMs={deepMovetimeMs > 0 ? deepMovetimeMs : movetimeMs}
+              movetimeMs={movetimeMs}
               flipped={flipped}
               blackName={game.black}
               whiteName={game.white}
@@ -752,7 +730,7 @@ export default function App() {
             <TsumeMode
               tsumes={focusedTsumes}
               ensureEngine={ensureEngine}
-              movetimeMs={deepMovetimeMs > 0 ? deepMovetimeMs : movetimeMs}
+              movetimeMs={movetimeMs}
               flipped={flipped}
               blackName={game.black}
               whiteName={game.white}
@@ -762,7 +740,7 @@ export default function App() {
               plies={result.plies}
               moveLabels={moveLabels}
               ensureEngine={ensureEngine}
-              movetimeMs={deepMovetimeMs > 0 ? deepMovetimeMs : movetimeMs}
+              movetimeMs={movetimeMs}
               flipped={flipped}
               blackName={game.black}
               whiteName={game.white}

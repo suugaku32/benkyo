@@ -21,8 +21,6 @@ export interface PlyEval {
   refutationPv: string[];
   centipawnLoss: number;
   quality: MoveQuality;
-  /** True once the second pass has re-examined this ply at the deeper time control. */
-  refined?: boolean;
   /**
    * Mat forcé disponible avant ce coup, du point de vue du joueur au trait :
    * positif = il mate en N, négatif = il se fait mater en N. `null` = pas de mat vu.
@@ -38,9 +36,9 @@ export interface PlyEval {
  * Détecté via le `score mate` de la recherche normale : ce build du moteur
  * n'expose pas `go mate` (la commande y tombe dans une recherche *sans limite
  * de temps*, vérifié). Un score de mat est une ligne prouvée par la recherche,
- * donc les faux positifs sont exclus ; en revanche un balayage court rate les
- * mats profonds, d'où la troisième passe qui reprend ces positions plus
- * longtemps.
+ * donc les faux positifs sont exclus ; en revanche une analyse trop courte
+ * rate les mats profonds ou en rend une séquence tronquée — pour une lecture
+ * plus sûre, augmenter le temps d'analyse réglé à la saisie du kifu.
  */
 export interface Tsume {
   /** Coup de la partie où l'occasion s'est présentée (1-indexé). */
@@ -55,8 +53,6 @@ export interface Tsume {
   playedUsi: string;
   /** Vrai si le coup joué à `ply` conservait le mat forcé. */
   found: boolean;
-  /** Vrai si la position a été revue à la cadence longue. */
-  refined: boolean;
   /**
    * Positions supplémentaires absorbées : un mat forcé reste disponible tant
    * qu'on le porte, donc la même occasion réapparaît à chaque coup suivant. Les
@@ -90,20 +86,15 @@ export interface AnalysisResult {
   tsumes: Tsume[];
 }
 
-export type AnalysisPhase = 'scan' | 'refine' | 'tsume';
+export type AnalysisPhase = 'scan';
 
 export interface AnalyzeGameOptions {
-  /** Time per position for the first pass, which sweeps the whole game. */
+  /** Time per position, pour toute la partie. */
   movetimeMs?: number;
-  /** Time per position for the second pass, which re-examines suspect moves only. */
-  deepMovetimeMs?: number;
   depth?: number;
   onProgress?: (phase: AnalysisPhase, done: number, total: number) => void;
   signal?: AbortSignal;
 }
-
-/** Qualities worth spending the second pass on. */
-const REFINED_QUALITIES: MoveQuality[] = ['inaccuracy', 'mistake', 'blunder'];
 
 /** Ce que le moteur rapporte pour une position donnée. */
 interface PositionEval {
@@ -193,106 +184,9 @@ export async function analyzeGame(
     });
   }
 
-  // Pass 2 — re-examine only the suspect moves, with a much longer search.
-  // The first pass is too shallow to be trusted as the answer key in training
-  // mode, and it also mislabels some moves in both directions.
-  const deepMs = opts.deepMovetimeMs;
-  // Partagée avec la passe tsume plus bas : une position déjà creusée ici n'a pas
-  // à l'être une seconde fois.
-  const deep = new Map<number, PositionEval>();
-  if (deepMs && deepMs > (opts.movetimeMs ?? 0)) {
-    const candidates = plies.filter((p) => REFINED_QUALITIES.includes(p.quality));
-    // A ply needs its own position and the one after it; consecutive candidates share.
-    const needed = new Set<number>();
-    for (const p of candidates) {
-      needed.add(p.ply - 1);
-      needed.add(p.ply);
-    }
-    const indices = [...needed].sort((a, b) => a - b);
-
-    for (let k = 0; k < indices.length; k++) {
-      if (opts.signal?.aborted) throw new DOMException('Analyse annulée', 'AbortError');
-      const i = indices[k];
-      const r = await engine.analyze(sfens[i], [], { movetimeMs: deepMs });
-      deep.set(i, {
-        cp: scoreToCp(r.scoreCp, r.scoreMate),
-        mate: r.scoreMate,
-        bestMove: r.bestMove,
-        pv: r.pv,
-      });
-      opts.onProgress?.('refine', k + 1, indices.length);
-    }
-
-    for (const p of candidates) {
-      const before = deep.get(p.ply - 1);
-      const after = deep.get(p.ply);
-      if (!before || !after) continue;
-      p.evalBeforeCp = before.cp;
-      p.evalAfterCp = -after.cp;
-      p.bestMove = before.bestMove;
-      p.bestMovePv = before.pv;
-      p.refutationPv = after.pv;
-      p.mateBefore = before.mate;
-      p.mateAfter = after.mate === null ? null : -after.mate;
-      p.centipawnLoss = Math.max(0, p.evalBeforeCp - p.evalAfterCp);
-      p.quality = classifyLoss(
-        Math.max(0, cpToWinPercent(p.evalBeforeCp) - cpToWinPercent(p.evalAfterCp)),
-      );
-      p.refined = true;
-    }
-
-    // Keep the curve consistent with the deepened values.
-    for (const p of candidates) {
-      const point = evalCurve[p.ply];
-      if (point) point.cpForBlack = p.color === 'b' ? p.evalAfterCp : -p.evalAfterCp;
-    }
-  }
-
-  // Pass 3 — les positions où un mat forcé a été aperçu méritent une vraie
-  // séquence de solution. Le balayage court donne le verdict « il y a un mat »
-  // mais souvent une variante tronquée ; on reprend donc ces positions à la
-  // cadence longue, en sautant celles que la passe 2 a déjà traitées.
-  if (deepMs && deepMs > (opts.movetimeMs ?? 0)) {
-    const toDeepen = plies
-      .filter((p) => p.mateBefore !== null && p.mateBefore > 0)
-      .map((p) => p.ply - 1)
-      .filter((i) => !deep.has(i));
-    const unique = [...new Set(toDeepen)];
-
-    for (let k = 0; k < unique.length; k++) {
-      if (opts.signal?.aborted) throw new DOMException('Analyse annulée', 'AbortError');
-      const i = unique[k];
-      const r = await engine.analyze(sfens[i], [], { movetimeMs: deepMs });
-      deep.set(i, {
-        cp: scoreToCp(r.scoreCp, r.scoreMate),
-        mate: r.scoreMate,
-        bestMove: r.bestMove,
-        pv: r.pv,
-      });
-      opts.onProgress?.('tsume', k + 1, unique.length);
-    }
-
-    for (const p of plies) {
-      const d = deep.get(p.ply - 1);
-      if (!d || p.mateBefore === null || p.mateBefore <= 0) continue;
-      // Un mat vu à 200 ms est une ligne prouvée : il ne disparaît pas en
-      // cherchant plus longtemps. Si la passe longue rend malgré tout un score
-      // en centipions (itération interrompue), on garde la détection initiale
-      // plutôt que de perdre le tsume.
-      if (d.mate !== null && d.mate > 0) {
-        p.mateBefore = d.mate;
-        p.bestMove = d.bestMove;
-        p.bestMovePv = d.pv;
-      }
-    }
-  }
-
   const blunders = plies.filter((p) => p.quality === 'blunder');
   const mistakes = plies.filter((p) => p.quality === 'mistake');
-  const tsumes = collectTsumes(
-    plies,
-    new Set([...deep.keys()].map((i) => i + 1)),
-  );
+  const tsumes = collectTsumes(plies);
 
   return { startSfen, plies, evalCurve, blunders, mistakes, tsumes };
 }
@@ -305,7 +199,7 @@ export async function analyzeGame(
  * après le coup joué, l'adversaire est-il *encore* en train de se faire mater ?
  * Peu importe que le joueur ait choisi le mat le plus court.
  */
-export function collectTsumes(plies: PlyEval[], refinedPlies?: Set<number>): Tsume[] {
+export function collectTsumes(plies: PlyEval[]): Tsume[] {
   const out: Tsume[] = [];
   /** Dernier tsume retenu pour chaque camp, avec le coup où on l'a laissé. */
   const chain = new Map<Color, { entry: Tsume; ply: number }>();
@@ -341,7 +235,6 @@ export function collectTsumes(plies: PlyEval[], refinedPlies?: Set<number>): Tsu
       solution: p.bestMovePv,
       playedUsi: p.moveUsi,
       found: kept,
-      refined: refinedPlies ? refinedPlies.has(p.ply) : (p.refined ?? false),
       repeats: 0,
       lastPly: p.ply,
       delivered: mated,

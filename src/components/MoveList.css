@@ -64,11 +64,6 @@
   font-size: 11px;
 }
 
-.move-refined {
-  color: var(--dim);
-  font-weight: 400;
-}
-
 .move-row.dimmed {
   opacity: 0.42;
 }

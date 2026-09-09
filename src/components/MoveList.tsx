@@ -43,12 +43,6 @@ export function MoveList({
           {SHOWN_QUALITIES.has(p.quality) && (
             <span className="move-quality" style={{ color: QUALITY_COLOR[p.quality] }}>
               {QUALITY_LABEL_FR[p.quality]}
-              {p.refined && (
-                <span className="move-refined" title="Réexaminé en profondeur">
-                  {' '}
-                  ✓
-                </span>
-              )}
             </span>
           )}
         </li>

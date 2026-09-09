@@ -11,10 +11,8 @@ export interface Settings {
   showBestArrow: boolean;
   /** Joueur(s) suivi(s) par les compteurs et les listes. */
   focusSide: 'both' | 'b' | 'w';
-  /** Temps par position, première passe. */
+  /** Temps par position pour toute la partie. */
   movetimeMs: number;
-  /** Temps par position, seconde passe. 0 = pas de seconde passe. */
-  deepMovetimeMs: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -22,7 +20,6 @@ export const DEFAULT_SETTINGS: Settings = {
   showBestArrow: true,
   focusSide: 'both',
   movetimeMs: 200,
-  deepMovetimeMs: 2000,
 };
 
 const KEY = 'jaaa7up-settings-v1';
@@ -51,7 +48,6 @@ export function loadSettings(): Settings {
           ? p.focusSide
           : DEFAULT_SETTINGS.focusSide,
       movetimeMs: clampMs(p.movetimeMs, DEFAULT_SETTINGS.movetimeMs),
-      deepMovetimeMs: clampMs(p.deepMovetimeMs, DEFAULT_SETTINGS.deepMovetimeMs),
     };
   } catch {
     // Stockage indisponible ou contenu illisible : on repart des valeurs par

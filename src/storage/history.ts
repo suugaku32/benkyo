@@ -20,7 +20,6 @@ interface StoredPly {
   m: string | null; // bestMove
   p: string[]; // bestMovePv
   r: string[]; // refutationPv
-  f?: 1; // refined
   // Mats forcés. Absents des parties enregistrées avant l'ajout du mode tsume :
   // ces entrées se rechargent alors sans tsume plutôt que d'être rejetées.
   mb?: number; // mateBefore
@@ -36,7 +35,6 @@ export interface StoredGame {
   startSfen: string;
   moves: string[];
   movetimeMs: number;
-  deepMovetimeMs: number;
   evalCurve: EvalPoint[];
   plies: StoredPly[];
 }
@@ -103,7 +101,6 @@ export function saveGame(
   game: ParsedGame,
   result: AnalysisResult,
   movetimeMs: number,
-  deepMovetimeMs: number,
 ): { ok: boolean; reason?: string } {
   const entry: StoredGame = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -114,7 +111,6 @@ export function saveGame(
     startSfen: game.startSfen,
     moves: game.moves,
     movetimeMs,
-    deepMovetimeMs,
     evalCurve: result.evalCurve,
     plies: result.plies.map((p) => ({
       b: p.evalBeforeCp,
@@ -124,7 +120,6 @@ export function saveGame(
       m: p.bestMove,
       p: p.bestMovePv,
       r: p.refutationPv,
-      ...(p.refined ? { f: 1 as const } : {}),
       ...(p.mateBefore !== null ? { mb: p.mateBefore } : {}),
       ...(p.mateAfter !== null ? { ma: p.mateAfter } : {}),
     })),
@@ -159,7 +154,7 @@ export function clearHistory(): void {
 /** Reconstruit la partie et son analyse à partir de la forme compacte stockée. */
 export function loadGame(
   id: string,
-): { game: ParsedGame; result: AnalysisResult; movetimeMs: number; deepMovetimeMs: number } | null {
+): { game: ParsedGame; result: AnalysisResult; movetimeMs: number } | null {
   const stored = readAll().find((g) => g.id === id);
   if (!stored) return null;
 
@@ -186,7 +181,6 @@ export function loadGame(
       refutationPv: s.r ?? [],
       centipawnLoss: s.l,
       quality: s.q,
-      refined: s.f === 1,
       mateBefore: s.mb ?? null,
       mateAfter: s.ma ?? null,
     }));
@@ -210,7 +204,6 @@ export function loadGame(
       game,
       result,
       movetimeMs: stored.movetimeMs,
-      deepMovetimeMs: stored.deepMovetimeMs,
     };
   } catch {
     // Entrée écrite par une version antérieure, ou coup devenu invalide.

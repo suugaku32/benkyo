@@ -20,8 +20,6 @@ interface KifuInputProps {
   onAnalyze: () => void;
   movetimeMs: number;
   onMovetimeChange: (ms: number) => void;
-  deepMovetimeMs: number;
-  onDeepMovetimeChange: (ms: number) => void;
   disabled?: boolean;
 }
 
@@ -31,8 +29,6 @@ export function KifuInput({
   onAnalyze,
   movetimeMs,
   onMovetimeChange,
-  deepMovetimeMs,
-  onDeepMovetimeChange,
   disabled,
 }: KifuInputProps) {
   const [showHelp, setShowHelp] = useState(false);
@@ -55,7 +51,7 @@ export function KifuInput({
           Charger un exemple
         </button>
         <label className="movetime-control">
-          Balayage :
+          Temps d'analyse :
           <select
             value={movetimeMs}
             onChange={(e) => onMovetimeChange(parseInt(e.target.value, 10))}
@@ -65,19 +61,9 @@ export function KifuInput({
             <option value={200}>200 ms</option>
             <option value={400}>400 ms</option>
             <option value={800}>800 ms</option>
-          </select>
-        </label>
-        <label className="movetime-control">
-          Étude des gaffes :
-          <select
-            value={deepMovetimeMs}
-            onChange={(e) => onDeepMovetimeChange(parseInt(e.target.value, 10))}
-            disabled={disabled}
-          >
-            <option value={0}>désactivée</option>
-            <option value={1000}>1 s</option>
-            <option value={2000}>2 s</option>
-            <option value={4000}>4 s</option>
+            <option value={1500}>1,5 s</option>
+            <option value={3000}>3 s</option>
+            <option value={6000}>6 s</option>
           </select>
         </label>
         <button type="button" className="btn btn-link" onClick={() => setShowHelp((v) => !v)}>
@@ -91,10 +77,9 @@ export function KifuInput({
           <p><strong>CSA</strong> : lignes <code>+7776FU</code> / <code>-3334FU</code>.</p>
           <p><strong>USI</strong> : <code>position startpos moves 7g7f 3c3d ...</code> ou une simple liste de coups.</p>
           <p className="kifu-help-note">
-            L'analyse se fait en deux passes : un <strong>balayage</strong> rapide de toute la
-            partie pour repérer les coups suspects, puis une <strong>étude</strong> plus longue
-            de ces seules positions. C'est cette seconde passe qui fournit le meilleur coup
-            servant de corrigé en mode entraînement.
+            Chaque position de la partie est analysée pendant le <strong>temps d'analyse</strong>{' '}
+            réglé ci-dessus. Plus il est long, plus le coup recommandé et le classement des
+            coups sont fiables — au prix d'une analyse plus lente sur une longue partie.
           </p>
         </div>
       )}

@@ -610,13 +610,6 @@ export function TsumeMode({
             </div>
           )}
 
-          {!current.refined && (
-            <p className="tsume-note">
-              Mat repéré pendant le balayage rapide, non revu à la cadence longue : la séquence
-              proposée peut être incomplète.
-            </p>
-          )}
-
           {state.kind !== 'revealed' && state.kind !== 'solved' && (
             <button
               className="btn btn-ghost"
