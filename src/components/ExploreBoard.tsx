@@ -30,6 +30,12 @@ interface ExploreBoardProps {
   autoReply: boolean;
   /** Flèche du coup conseillé dans la variante, cherchée en direct à `replyMs`. */
   showArrow: boolean;
+  /**
+   * Appelé au premier coup joué hors de la partie. Le panneau « Explorer »
+   * n'a d'intérêt qu'à partir de là : c'est le moment de le montrer, plutôt
+   * que de laisser chercher où l'on règle ce qui vient de changer sous les yeux.
+   */
+  onBranchStart?: () => void;
 }
 
 /** Rejoue une séquence depuis un SFEN. `null` si elle est invalide. */
@@ -65,6 +71,7 @@ export function ExploreBoard({
   replyMs,
   autoReply,
   showArrow,
+  onBranchStart,
 }: ExploreBoardProps) {
   const [branch, setBranch] = useState<{ base: string; moves: string[] } | null>(null);
   const [selected, setSelected] = useState<
@@ -187,6 +194,7 @@ export function ExploreBoard({
     const base = branch?.base ?? baseSfen;
     const moves = (branch?.moves ?? []).concat(usi);
     if (!replay(base, moves)) return;
+    if (!branch) onBranchStart?.();
     setBranch({ base, moves });
     setSelected(null);
     // Sans réponse du moteur, rien à attendre : le coup est joué, la main passe

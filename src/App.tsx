@@ -70,6 +70,13 @@ export default function App() {
    * à chaque coup.
    */
   const [autoReply, setAutoReply] = useState(true);
+  /*
+   * Sous le plateau se suivaient la liste des coups et les réglages
+   * d'exploration — de quoi faire défiler l'écran pour retrouver une
+   * information. Ils partagent maintenant une même place, et on choisit
+   * lequel occupe le terrain.
+   */
+  const [panel, setPanel] = useState<'moves' | 'explore'>('moves');
   /** Variante rejouée par-dessus la partie : d'où elle part, ses coups, et où on en est. */
   const [variation, setVariation] = useState<{
     baseSfen: string;
@@ -402,26 +409,6 @@ export default function App() {
                 >
                   {showBestArrow ? '↗ Flèches affichées' : '↗ Flèches masquées'}
                 </button>
-                {/* Le plateau d'analyse est jouable : ces deux réglages décident
-                    si un adversaire s'invite dans les coups qu'on y explore. */}
-                <button
-                  className="btn btn-ghost"
-                  onClick={() => setAutoReply((v) => !v)}
-                  title="Coché, le moteur répond à vos coups joués sur le plateau d'analyse"
-                >
-                  {autoReply ? '🤖 Moteur : répond' : '🤖 Moteur : coupé'}
-                </button>
-                <label className="focus-control">
-                  Réponse du moteur
-                  <select value={replyMs} onChange={(e) => setReplyMs(Number(e.target.value))}>
-                    <option value={200}>200 ms</option>
-                    <option value={500}>500 ms</option>
-                    <option value={1000}>1 s</option>
-                    <option value={2000}>2 s</option>
-                    <option value={5000}>5 s</option>
-                    <option value={10000}>10 s</option>
-                  </select>
-                </label>
                 {/* La cadence est ici, et pas seulement sur l'écran de saisie :
                     sans elle, « réanalyser » referait exactement la même chose. */}
                 <label className="focus-control">
@@ -624,6 +611,7 @@ export default function App() {
                       replyMs={replyMs}
                       autoReply={autoReply}
                       showArrow={showBestArrow}
+                      onBranchStart={() => setPanel('explore')}
                     />
                   )}
                   {variation && (
@@ -709,13 +697,61 @@ export default function App() {
                     </div>
                   )}
 
-                  <MoveList
-                    plies={result.plies}
-                    moveLabels={moveLabels}
-                    currentPly={currentPly}
-                    onSelectPly={selectPly}
-                    focusSide={focusSide}
-                  />
+                  <div className="analysis-segments" role="tablist">
+                    <button
+                      role="tab"
+                      aria-selected={panel === 'moves'}
+                      className={panel === 'moves' ? 'active' : ''}
+                      onClick={() => setPanel('moves')}
+                    >
+                      Coups
+                    </button>
+                    <button
+                      role="tab"
+                      aria-selected={panel === 'explore'}
+                      className={panel === 'explore' ? 'active' : ''}
+                      onClick={() => setPanel('explore')}
+                    >
+                      Explorer
+                    </button>
+                  </div>
+
+                  <div className={`analysis-panel panel-moves${panel === 'moves' ? ' active' : ''}`}>
+                    <MoveList
+                      plies={result.plies}
+                      moveLabels={moveLabels}
+                      currentPly={currentPly}
+                      onSelectPly={selectPly}
+                      focusSide={focusSide}
+                    />
+                  </div>
+
+                  <div className={`analysis-panel panel-explore${panel === 'explore' ? ' active' : ''}`}>
+                    <p className="explore-hint">
+                      Jouez un coup sur le plateau pour ouvrir une variante.{' '}
+                      {autoReply
+                        ? 'Le moteur répondra, et la partie reprendra son cours au coup suivant.'
+                        : 'Vous jouez les deux camps ; la partie reprendra son cours au coup suivant.'}
+                    </p>
+                    <button
+                      className="btn btn-ghost"
+                      onClick={() => setAutoReply((v) => !v)}
+                      title="Coché, le moteur répond à vos coups joués sur le plateau d'analyse"
+                    >
+                      {autoReply ? '🤖 Moteur : répond' : '🤖 Moteur : coupé'}
+                    </button>
+                    <label className="focus-control">
+                      Temps de réflexion
+                      <select value={replyMs} onChange={(e) => setReplyMs(Number(e.target.value))}>
+                        <option value={200}>200 ms</option>
+                        <option value={500}>500 ms</option>
+                        <option value={1000}>1 s</option>
+                        <option value={2000}>2 s</option>
+                        <option value={5000}>5 s</option>
+                        <option value={10000}>10 s</option>
+                      </select>
+                    </label>
+                  </div>
                 </div>
               </div>
             </>
