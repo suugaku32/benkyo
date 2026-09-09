@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Board } from './Board';
 import type { PlyEval } from '../analysis/analyze';
-import { QUALITY_COLOR, QUALITY_LABEL_FR } from '../analysis/classify';
+import { QUALITY_COLOR, QUALITY_LABEL_FR, scoreToCp } from '../analysis/classify';
 import type { MoveQuality } from '../analysis/classify';
+import type { UsiEngine } from '../engine/UsiEngine';
 import { Position } from '../shogi/position';
 import { formatUsiMoveAsKif } from '../shogi/notation';
-import type { Color } from '../shogi/types';
-import { usiToSquare } from '../shogi/types';
+import { generateLegalMoves, moveToUsi } from '../shogi/moveGen';
+import type { Color, Move, PieceType, Square } from '../shogi/types';
+import { sameSquare, usiToSquare } from '../shogi/types';
 import './StudyMode.css';
 
 /**
@@ -47,8 +49,10 @@ const QUALITY_TO_LEVEL_INDEX: Record<MoveQuality, number> = {
 
 interface Judgment {
   level: UserLevel;
-  reason: string;
-  altMove: string;
+  /** Coup proposé à la place, demandé dès que le niveau n'est pas 良い手. */
+  altMove?: string;
+  /** Évaluation réelle de ce coup par le moteur, du point de vue de qui l'a proposé. */
+  altCp?: number;
 }
 
 type Match = 'hit' | 'close' | 'miss';
@@ -62,9 +66,15 @@ function matchFor(judgment: Judgment, quality: MoveQuality): Match {
 
 const MATCH_LABEL: Record<Match, string> = { hit: '✓ Bien vu', close: '≈ Proche', miss: '✗ Raté' };
 
+function formatCp(cp: number): string {
+  return `${cp > 0 ? '+' : ''}${Math.round(cp)}`;
+}
+
 interface StudyModeProps {
   plies: PlyEval[];
   moveLabels: string[]; // index i = label for ply i+1, comme dans MoveList
+  ensureEngine: () => Promise<UsiEngine>;
+  movetimeMs: number;
   flipped?: boolean;
   blackName?: string;
   whiteName?: string;
@@ -72,14 +82,30 @@ interface StudyModeProps {
 
 type Phase = 'pick' | 'review' | 'result';
 
-export function StudyMode({ plies, moveLabels, flipped, blackName, whiteName }: StudyModeProps) {
+export function StudyMode({
+  plies,
+  moveLabels,
+  ensureEngine,
+  movetimeMs,
+  flipped,
+  blackName,
+  whiteName,
+}: StudyModeProps) {
   const [phase, setPhase] = useState<Phase>('pick');
   const [side, setSide] = useState<Color>('b');
   const [idx, setIdx] = useState(0);
   const [judgments, setJudgments] = useState<Map<number, Judgment>>(new Map());
-  const [reasonDraft, setReasonDraft] = useState('');
-  const [altDraft, setAltDraft] = useState('');
   const [openDetail, setOpenDetail] = useState<number | null>(null);
+
+  /** Niveau choisi mais pas encore finalisé : on attend le coup alternatif. */
+  const [pendingLevel, setPendingLevel] = useState<UserLevel | null>(null);
+  const [selected, setSelected] = useState<
+    { kind: 'square'; sq: Square } | { kind: 'hand'; type: PieceType } | null
+  >(null);
+  const [errorSquare, setErrorSquare] = useState<Square | null>(null);
+  const [promptPromotion, setPromptPromotion] = useState<{ from: Square; to: Square } | null>(null);
+  const [altAnalyzing, setAltAnalyzing] = useState(false);
+  const [altError, setAltError] = useState<string | null>(null);
 
   // Une nouvelle analyse (ou une partie rechargée) repart de zéro : les
   // jugements d'une étude précédente n'ont plus de sens sur une autre partie.
@@ -92,11 +118,14 @@ export function StudyMode({ plies, moveLabels, flipped, blackName, whiteName }: 
 
   const sidePlies = useMemo(() => plies.filter((p) => p.color === side), [plies, side]);
 
-  // Le brouillon (raisonnement, alternative) est propre au coup affiché : en
-  // changer efface ce qui n'a pas été validé par un clic sur un niveau.
+  // Changer de coup annule toute proposition en cours : elle n'a de sens que
+  // pour le coup affiché au moment où elle a été demandée.
   useEffect(() => {
-    setReasonDraft('');
-    setAltDraft('');
+    setPendingLevel(null);
+    setSelected(null);
+    setErrorSquare(null);
+    setPromptPromotion(null);
+    setAltError(null);
   }, [idx, side]);
 
   const sideLabel = (c: Color) => (c === 'b' ? `▲ ${blackName || 'Sente'}` : `△ ${whiteName || 'Gote'}`);
@@ -113,21 +142,14 @@ export function StudyMode({ plies, moveLabels, flipped, blackName, whiteName }: 
     setIdx(Math.max(0, Math.min(sidePlies.length - 1, next)));
   };
 
-  const judge = (ply: number, level: UserLevel) => {
-    setJudgments((prev) => {
-      const next = new Map(prev);
-      next.set(ply, { level, reason: reasonDraft.trim(), altMove: altDraft.trim() });
-      return next;
-    });
-  };
-
   if (phase === 'pick') {
     return (
       <div className="study study-pick">
         <p className="study-intro">
-          Choisissez le camp à étudier. Pour chaque coup qui vous semble mériter un arrêt : dites
-          d'abord ce que vous en pensez et pourquoi, proposez éventuellement mieux, et regardez
-          l'analyse seulement ensuite pour comparer votre raisonnement au sien.
+          Choisissez le camp à étudier. Pour chaque coup qui vous semble mériter un arrêt :
+          jugez-le d'abord (良い手・普通・疑問手・悪手) ; s'il n'est pas 良い手, proposez le coup que
+          vous auriez joué à la place — il sera évalué par le moteur — puis seulement ensuite
+          comparez avec le verdict réel.
         </p>
         <p className="study-intro">
           Pas besoin de juger chaque coup — les flèches avancent librement. Réservez le jugement
@@ -159,21 +181,122 @@ export function StudyMode({ plies, moveLabels, flipped, blackName, whiteName }: 
 
   if (phase === 'review') {
     const current = sidePlies[idx];
-    const position = Position.fromSfen(current.sfenAfter);
-    const lastMove = {
+    const positionBefore = Position.fromSfen(current.sfenBefore);
+    const positionAfter = Position.fromSfen(current.sfenAfter);
+    const playedLastMove = {
       from: current.moveUsi.includes('*') ? null : usiToSquare(current.moveUsi.slice(0, 2)),
       to: usiToSquare(current.moveUsi.slice(2, 4)),
     };
     const judgment = judgments.get(current.ply) ?? null;
     const match = judgment ? matchFor(judgment, current.quality) : null;
     const isLast = idx >= sidePlies.length - 1;
+    const isProposing = pendingLevel !== null;
 
-    // Avancer ne demande pas d'avoir jugé le coup : certains coups n'ont rien
-    // à juger (une suite forcée, une reprise évidente), et l'imposer forçait à
-    // deviner un verdict juste pour continuer à lire la partie.
     const advance = () => {
       if (isLast) setPhase('result');
       else goTo(idx + 1);
+    };
+
+    const finalize = (j: Judgment) => {
+      setJudgments((prev) => {
+        const next = new Map(prev);
+        next.set(current.ply, j);
+        return next;
+      });
+      setPendingLevel(null);
+      setSelected(null);
+    };
+
+    const chooseLevel = (level: UserLevel) => {
+      if (level === 'good') finalize({ level });
+      else setPendingLevel(level);
+    };
+
+    const legalMoves = isProposing ? generateLegalMoves(positionBefore, positionBefore.turn) : [];
+
+    const destinations = (): Square[] => {
+      if (!selected) return [];
+      if (selected.kind === 'hand') {
+        return legalMoves.filter((m) => !m.from && m.piece === selected.type).map((m) => m.to);
+      }
+      return legalMoves.filter((m) => m.from && sameSquare(m.from, selected.sq)).map((m) => m.to);
+    };
+
+    const flashError = (sq: Square) => {
+      setErrorSquare(sq);
+      setTimeout(() => setErrorSquare(null), 450);
+    };
+
+    const submitAlt = async (usi: string) => {
+      if (!pendingLevel) return;
+      setAltAnalyzing(true);
+      setAltError(null);
+      try {
+        const engine = await ensureEngine();
+        const res = await engine.analyze(current.sfenBefore, [usi], { movetimeMs });
+        // Le score revient du point de vue de l'adversaire — on le ramène à
+        // celui de qui vient de jouer, comme en mode Entraînement.
+        const altCp = -scoreToCp(res.scoreCp, res.scoreMate);
+        finalize({ level: pendingLevel, altMove: usi, altCp });
+      } catch (e) {
+        setAltError((e as Error).message);
+      } finally {
+        setAltAnalyzing(false);
+      }
+    };
+
+    const tryMove = (to: Square) => {
+      if (!selected || altAnalyzing) return;
+      const candidates: Move[] = legalMoves.filter((m) => {
+        if (!sameSquare(m.to, to)) return false;
+        if (selected.kind === 'hand') return !m.from && m.piece === selected.type;
+        return m.from != null && sameSquare(m.from, selected.sq);
+      });
+      setSelected(null);
+      if (candidates.length === 0) {
+        flashError(to);
+        return;
+      }
+      const promoting = candidates.filter((m) => m.promote);
+      const plain = candidates.filter((m) => !m.promote);
+      if (promoting.length > 0 && plain.length > 0) {
+        setPromptPromotion({ from: plain[0].from!, to });
+        return;
+      }
+      void submitAlt(moveToUsi(candidates[0]));
+    };
+
+    const onSquareClick = (sq: Square) => {
+      if (altAnalyzing || promptPromotion) return;
+      const piece = positionBefore.pieceAt(sq);
+      if (selected?.kind === 'square' && sameSquare(selected.sq, sq)) {
+        setSelected(null);
+        return;
+      }
+      if (piece && piece.color === positionBefore.turn) {
+        setSelected({ kind: 'square', sq });
+        return;
+      }
+      if (selected) tryMove(sq);
+    };
+
+    const onHandPieceClick = (type: PieceType) => {
+      if (altAnalyzing || promptPromotion) return;
+      if (selected?.kind === 'hand' && selected.type === type) {
+        setSelected(null);
+        return;
+      }
+      setSelected({ kind: 'hand', type });
+    };
+
+    const resolvePromotion = (promote: boolean) => {
+      if (!promptPromotion) return;
+      const { from, to } = promptPromotion;
+      setPromptPromotion(null);
+      const move = legalMoves.find(
+        (m) => m.from && sameSquare(m.from, from) && sameSquare(m.to, to) && m.promote === promote,
+      );
+      if (move) void submitAlt(moveToUsi(move));
     };
 
     return (
@@ -236,54 +359,65 @@ export function StudyMode({ plies, moveLabels, flipped, blackName, whiteName }: 
         <p className="study-prompt">
           Coup {current.ply} — <strong>{sideLabel(side)}</strong> joue{' '}
           <strong>{moveLabels[current.ply - 1]}</strong>.
+          {isProposing && ' Sélectionnez le coup que vous auriez joué à la place.'}
         </p>
 
         <div className="study-body">
           <div className="study-board">
             <Board
-              position={position}
-              lastMove={lastMove}
+              position={isProposing ? positionBefore : positionAfter}
+              lastMove={isProposing ? null : playedLastMove}
+              interactive={isProposing && !promptPromotion && !altAnalyzing}
+              selected={isProposing ? selected : undefined}
+              legalDestinations={isProposing ? destinations() : undefined}
+              errorSquare={isProposing ? errorSquare : undefined}
+              handSide={isProposing ? positionBefore.turn : undefined}
               flipped={flipped}
               blackName={blackName}
               whiteName={whiteName}
+              onSquareClick={isProposing ? onSquareClick : undefined}
+              onHandPieceClick={isProposing ? onHandPieceClick : undefined}
             />
           </div>
           <div className="study-side">
-            {!judgment ? (
-              <div className="study-judge-form">
-                <label className="study-field">
-                  Pourquoi ? (votre raisonnement)
-                  <textarea
-                    className="study-textarea"
-                    value={reasonDraft}
-                    onChange={(e) => setReasonDraft(e.target.value)}
-                    rows={3}
-                    placeholder="Ex : améliore l'activité de la tour, prépare une percée sur l'aile…"
-                  />
-                </label>
-                <label className="study-field">
-                  Votre alternative (optionnel)
-                  <input
-                    className="study-input"
-                    type="text"
-                    value={altDraft}
-                    onChange={(e) => setAltDraft(e.target.value)}
-                    placeholder="Ex : 3三角成"
-                  />
-                </label>
-                <div className="study-judge-buttons">
-                  {LEVELS.map((l) => (
-                    <button
-                      key={l.id}
-                      type="button"
-                      className="btn study-level-btn"
-                      style={{ borderColor: l.colorVar, color: l.colorVar }}
-                      onClick={() => judge(current.ply, l.id)}
-                    >
-                      {l.label}
+            {isProposing ? (
+              <div className="study-propose">
+                {promptPromotion && (
+                  <div className="promo-prompt">
+                    <span>Promouvoir ?</span>
+                    <button className="btn btn-primary" onClick={() => resolvePromotion(true)}>
+                      成 Oui
                     </button>
-                  ))}
-                </div>
+                    <button className="btn btn-ghost" onClick={() => resolvePromotion(false)}>
+                      Non
+                    </button>
+                  </div>
+                )}
+                {altAnalyzing && <p className="study-hint">Analyse du coup…</p>}
+                {altError && (
+                  <p className="study-hint">
+                    Le moteur n'a pas pu analyser ce coup : {altError}
+                  </p>
+                )}
+                {!altAnalyzing && !promptPromotion && (
+                  <button className="btn btn-ghost" onClick={() => setPendingLevel(null)}>
+                    Ne pas proposer de coup
+                  </button>
+                )}
+              </div>
+            ) : !judgment ? (
+              <div className="study-judge-buttons">
+                {LEVELS.map((l) => (
+                  <button
+                    key={l.id}
+                    type="button"
+                    className="btn study-level-btn"
+                    style={{ borderColor: l.colorVar, color: l.colorVar }}
+                    onClick={() => chooseLevel(l.id)}
+                  >
+                    {l.label}
+                  </button>
+                ))}
               </div>
             ) : (
               <>
@@ -291,8 +425,12 @@ export function StudyMode({ plies, moveLabels, flipped, blackName, whiteName }: 
                   <strong style={{ color: LEVEL_COLOR[judgment.level] }}>
                     Vous : {LEVEL_LABEL[judgment.level]}
                   </strong>
-                  {judgment.reason && <span>« {judgment.reason} »</span>}
-                  {judgment.altMove && <span>Votre alternative : {judgment.altMove}</span>}
+                  {judgment.altMove && (
+                    <span>
+                      Votre coup : {formatUsiMoveAsKif(positionBefore, judgment.altMove, null)}
+                      {judgment.altCp !== undefined ? ` — évalué à ${formatCp(judgment.altCp)}` : ''}
+                    </span>
+                  )}
                 </div>
                 <div className={`study-verdict-inline study-verdict-${match}`}>
                   <strong>{MATCH_LABEL[match!]}</strong>
@@ -304,8 +442,7 @@ export function StudyMode({ plies, moveLabels, flipped, blackName, whiteName }: 
                   </span>
                   {current.bestMove && current.quality !== 'best' && (
                     <span>
-                      Coup recommandé :{' '}
-                      {formatUsiMoveAsKif(Position.fromSfen(current.sfenBefore), current.bestMove, null)}
+                      Coup recommandé : {formatUsiMoveAsKif(positionBefore, current.bestMove, null)}
                     </span>
                   )}
                 </div>
@@ -391,8 +528,12 @@ export function StudyMode({ plies, moveLabels, flipped, blackName, whiteName }: 
                         Vous : {LEVEL_LABEL[judgment.level]}
                       </span>
                     )}
-                    {judgment?.reason && <span>« {judgment.reason} »</span>}
-                    {judgment?.altMove && <span>Votre alternative : {judgment.altMove}</span>}
+                    {judgment?.altMove && (
+                      <span>
+                        Votre coup : {formatUsiMoveAsKif(before, judgment.altMove, null)}
+                        {judgment.altCp !== undefined ? ` — évalué à ${formatCp(judgment.altCp)}` : ''}
+                      </span>
+                    )}
                     <span style={{ color: QUALITY_COLOR[p.quality] }}>
                       Analyse : {QUALITY_LABEL_FR[p.quality]}
                       {p.centipawnLoss > 0 ? ` — perte de ${Math.round(p.centipawnLoss)} cp` : ''}

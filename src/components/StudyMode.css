@@ -75,30 +75,15 @@
   gap: 10px;
 }
 
-.study-judge-form {
+.study-propose {
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 
-.study-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+.study-hint {
   font-size: 13px;
-  color: var(--text);
-}
-
-.study-textarea,
-.study-input {
-  font: inherit;
-  font-size: 13px;
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
-  color: var(--text);
-  resize: vertical;
+  color: var(--dim);
 }
 
 .study-judge-buttons {

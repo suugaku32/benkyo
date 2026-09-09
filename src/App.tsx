@@ -701,6 +701,8 @@ export default function App() {
             <StudyMode
               plies={result.plies}
               moveLabels={moveLabels}
+              ensureEngine={ensureEngine}
+              movetimeMs={deepMovetimeMs > 0 ? deepMovetimeMs : movetimeMs}
               flipped={flipped}
               blackName={game.black}
               whiteName={game.white}
