@@ -61,6 +61,19 @@
   flex-wrap: wrap;
 }
 
+.study-explore {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 500px;
+}
+
+.study-explore-head {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .study-board {
   display: flex;
   flex-direction: column;

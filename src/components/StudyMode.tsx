@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Board } from './Board';
+import { ExploreBoard } from './ExploreBoard';
 import type { PlyEval } from '../analysis/analyze';
 import { QUALITY_COLOR, QUALITY_LABEL_FR, scoreToCp } from '../analysis/classify';
 import type { MoveQuality } from '../analysis/classify';
@@ -110,6 +111,9 @@ export function StudyMode({
   const [altError, setAltError] = useState<string | null>(null);
   /** Coup d'œil sur l'analyse déjà connue du coup, sans passer par un jugement. */
   const [peekOpen, setPeekOpen] = useState(false);
+  /** Plateau d'exploration libre sur la position affichée, à tout moment. */
+  const [exploring, setExploring] = useState(false);
+  const [exploreAutoReply, setExploreAutoReply] = useState(true);
 
   // Une nouvelle analyse (ou une partie rechargée) repart de zéro : les
   // jugements d'une étude précédente n'ont plus de sens sur une autre partie.
@@ -132,6 +136,7 @@ export function StudyMode({
     setProposedUsi(null);
     setAltError(null);
     setPeekOpen(false);
+    setExploring(false);
   }, [idx, side]);
 
   const sideLabel = (c: Color) => (c === 'b' ? `▲ ${blackName || 'Sente'}` : `△ ${whiteName || 'Gote'}`);
@@ -396,6 +401,42 @@ export function StudyMode({
           {isProposing && !proposedUsi && ' Sélectionnez le coup que vous auriez joué à la place.'}
         </p>
 
+        {/*
+          Disponible à tout moment — avant ou après avoir jugé — sauf en
+          pleine proposition d'un coup, où le plateau sert déjà à autre chose.
+        */}
+        {!isProposing && !exploring && (
+          <button type="button" className="btn btn-ghost" onClick={() => setExploring(true)}>
+            🧭 Explorer cette position
+          </button>
+        )}
+
+        {exploring ? (
+          <div className="study-explore">
+            <div className="study-explore-head">
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => setExploreAutoReply((v) => !v)}
+              >
+                {exploreAutoReply ? '🤖 Moteur : répond' : '🤖 Moteur : coupé'}
+              </button>
+              <button type="button" className="btn btn-primary" onClick={() => setExploring(false)}>
+                ✕ Fermer l'exploration
+              </button>
+            </div>
+            <ExploreBoard
+              baseSfen={positionAfter.toSfen()}
+              ensureEngine={ensureEngine}
+              flipped={flipped}
+              blackName={blackName}
+              whiteName={whiteName}
+              replyMs={movetimeMs}
+              autoReply={exploreAutoReply}
+              showArrow={false}
+            />
+          </div>
+        ) : (
         <div className="study-body">
           <div className="study-board">
             <Board
@@ -516,6 +557,7 @@ export function StudyMode({
             </button>
           </div>
         </div>
+        )}
       </div>
     );
   }
