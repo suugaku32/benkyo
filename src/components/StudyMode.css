@@ -228,10 +228,20 @@
 .study-row-detail {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 0 12px 10px 34px;
+  gap: 8px;
+  padding: 0 12px 12px 34px;
   font-size: 13px;
   color: var(--text);
+}
+
+.study-row-board {
+  display: flex;
+}
+
+.study-row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .study-result-actions {

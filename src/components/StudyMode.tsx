@@ -110,13 +110,13 @@ export function StudyMode({ plies, moveLabels, flipped, blackName, whiteName }: 
     const actuallyBad = BAD_QUALITIES.has(current.quality);
     const correct = judgedBad === actuallyBad;
     const isLast = idx >= sidePlies.length - 1;
-    const canAdvance = isJudged && !isLast;
 
+    // Avancer ne demande pas d'avoir jugé le coup : certains coups n'ont rien
+    // à juger (une suite forcée, une reprise évidente), et l'imposer forçait à
+    // deviner un verdict juste pour continuer à lire la partie.
     const advance = () => {
-      if (isJudged) {
-        if (isLast) setPhase('result');
-        else goTo(idx + 1);
-      }
+      if (isLast) setPhase('result');
+      else goTo(idx + 1);
     };
 
     return (
@@ -135,8 +135,7 @@ export function StudyMode({ plies, moveLabels, flipped, blackName, whiteName }: 
             type="button"
             className="study-floating-btn"
             onClick={advance}
-            disabled={!canAdvance}
-            aria-label="Coup suivant"
+            aria-label={isLast ? 'Voir le bilan' : 'Coup suivant'}
           >
             ›
           </button>
@@ -170,7 +169,6 @@ export function StudyMode({ plies, moveLabels, flipped, blackName, whiteName }: 
             <button
               className="btn btn-ghost"
               onClick={advance}
-              disabled={!isJudged}
               aria-label={isLast ? 'Voir le bilan' : 'Coup suivant'}
             >
               <span className="nav-word">{isLast ? 'Bilan ' : 'Suivant '}</span>›
@@ -297,13 +295,31 @@ export function StudyMode({ plies, moveLabels, flipped, blackName, whiteName }: 
               </button>
               {isOpen && (
                 <div className="study-row-detail">
-                  <span style={{ color: QUALITY_COLOR[p.quality] }}>
-                    {QUALITY_LABEL_FR[p.quality]}
-                    {p.centipawnLoss > 0 ? ` — perte de ${Math.round(p.centipawnLoss)} cp` : ''}
-                  </span>
-                  {p.bestMove && p.quality !== 'best' && (
-                    <span>Coup recommandé : {formatUsiMoveAsKif(before, p.bestMove, null)}</span>
-                  )}
+                  {/* Le texte seul (« 3. 2六歩 ») ne dit rien de la position : on
+                      montre le plateau au moment du coup, pas seulement sa
+                      notation. */}
+                  <div className="study-row-board">
+                    <Board
+                      position={Position.fromSfen(p.sfenAfter)}
+                      lastMove={{
+                        from: p.moveUsi.includes('*') ? null : usiToSquare(p.moveUsi.slice(0, 2)),
+                        to: usiToSquare(p.moveUsi.slice(2, 4)),
+                      }}
+                      flipped={flipped}
+                      blackName={blackName}
+                      whiteName={whiteName}
+                      cellSize={32}
+                    />
+                  </div>
+                  <div className="study-row-text">
+                    <span style={{ color: QUALITY_COLOR[p.quality] }}>
+                      {QUALITY_LABEL_FR[p.quality]}
+                      {p.centipawnLoss > 0 ? ` — perte de ${Math.round(p.centipawnLoss)} cp` : ''}
+                    </span>
+                    {p.bestMove && p.quality !== 'best' && (
+                      <span>Coup recommandé : {formatUsiMoveAsKif(before, p.bestMove, null)}</span>
+                    )}
+                  </div>
                 </div>
               )}
             </li>
