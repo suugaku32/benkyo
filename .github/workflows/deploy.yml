@@ -2,7 +2,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [main]
+    branches: [main, claude/clone-scb-analyseur-lrnli4]
   workflow_dispatch:
 
 # Publier sur une branche demande d'écrire dans le dépôt, et plus rien de
