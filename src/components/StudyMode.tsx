@@ -25,6 +25,8 @@ export function StudyMode({ plies, moveLabels, flipped, blackName, whiteName }: 
   const [phase, setPhase] = useState<Phase>('pick');
   const [side, setSide] = useState<Color>('b');
   const [idx, setIdx] = useState(0);
+  /** Coups déjà jugés (bon ou mauvais) — distinct de `marks`, qui ne garde que les « mauvais ». */
+  const [judged, setJudged] = useState<Set<number>>(new Set());
   const [marks, setMarks] = useState<Set<number>>(new Set());
   const [openDetail, setOpenDetail] = useState<number | null>(null);
 
@@ -33,6 +35,7 @@ export function StudyMode({ plies, moveLabels, flipped, blackName, whiteName }: 
   useEffect(() => {
     setPhase('pick');
     setIdx(0);
+    setJudged(new Set());
     setMarks(new Set());
     setOpenDetail(null);
   }, [plies]);
@@ -44,6 +47,7 @@ export function StudyMode({ plies, moveLabels, flipped, blackName, whiteName }: 
   const startSide = (c: Color) => {
     setSide(c);
     setIdx(0);
+    setJudged(new Set());
     setMarks(new Set());
     setOpenDetail(null);
     setPhase('review');
@@ -53,11 +57,13 @@ export function StudyMode({ plies, moveLabels, flipped, blackName, whiteName }: 
     setIdx(Math.max(0, Math.min(sidePlies.length - 1, next)));
   };
 
-  const toggleMark = (ply: number) => {
+  /** Enregistre le jugement du coup courant et révèle aussitôt le verdict réel. */
+  const judge = (ply: number, bad: boolean) => {
+    setJudged((prev) => new Set(prev).add(ply));
     setMarks((prev) => {
       const next = new Set(prev);
-      if (next.has(ply)) next.delete(ply);
-      else next.add(ply);
+      if (bad) next.add(ply);
+      else next.delete(ply);
       return next;
     });
   };
@@ -66,9 +72,8 @@ export function StudyMode({ plies, moveLabels, flipped, blackName, whiteName }: 
     return (
       <div className="study study-pick">
         <p className="study-intro">
-          Choisissez le camp à étudier. Ses coups défileront un à un, sans le verdict du
-          moteur : à vous de repérer ceux qui vous semblent mauvais avant de voir ce qu'en
-          pense réellement l'analyse.
+          Choisissez le camp à étudier. Ses coups défileront un à un ; pour chacun, dites s'il
+          vous semble bon ou mauvais et le verdict de l'analyse tombe aussitôt.
         </p>
         <div className="study-pick-buttons">
           <button className="btn btn-primary" onClick={() => startSide('b')}>
@@ -100,10 +105,43 @@ export function StudyMode({ plies, moveLabels, flipped, blackName, whiteName }: 
       from: current.moveUsi.includes('*') ? null : usiToSquare(current.moveUsi.slice(0, 2)),
       to: usiToSquare(current.moveUsi.slice(2, 4)),
     };
-    const marked = marks.has(current.ply);
+    const isJudged = judged.has(current.ply);
+    const judgedBad = marks.has(current.ply);
+    const actuallyBad = BAD_QUALITIES.has(current.quality);
+    const correct = judgedBad === actuallyBad;
+    const isLast = idx >= sidePlies.length - 1;
+    const canAdvance = isJudged && !isLast;
+
+    const advance = () => {
+      if (isJudged) {
+        if (isLast) setPhase('result');
+        else goTo(idx + 1);
+      }
+    };
 
     return (
       <div className="study">
+        <div className="study-floating-nav">
+          <button
+            type="button"
+            className="study-floating-btn"
+            onClick={() => goTo(idx - 1)}
+            disabled={idx === 0}
+            aria-label="Coup précédent"
+          >
+            ‹
+          </button>
+          <button
+            type="button"
+            className="study-floating-btn"
+            onClick={advance}
+            disabled={!canAdvance}
+            aria-label="Coup suivant"
+          >
+            ›
+          </button>
+        </div>
+
         <div className="study-head">
           <label className="picker">
             <span className="picker-label">Coup</span>
@@ -115,7 +153,7 @@ export function StudyMode({ plies, moveLabels, flipped, blackName, whiteName }: 
               {sidePlies.map((p, i) => (
                 <option key={i} value={i}>
                   {i + 1}/{sidePlies.length} · {p.ply}. {moveLabels[p.ply - 1]}
-                  {marks.has(p.ply) ? ' ⚑' : ''}
+                  {judged.has(p.ply) ? (marks.has(p.ply) ? ' ⚑' : ' ✓') : ''}
                 </option>
               ))}
             </select>
@@ -131,11 +169,11 @@ export function StudyMode({ plies, moveLabels, flipped, blackName, whiteName }: 
             </button>
             <button
               className="btn btn-ghost"
-              onClick={() => goTo(idx + 1)}
-              disabled={idx >= sidePlies.length - 1}
-              aria-label="Coup suivant"
+              onClick={advance}
+              disabled={!isJudged}
+              aria-label={isLast ? 'Voir le bilan' : 'Coup suivant'}
             >
-              <span className="nav-word">Suivant </span>›
+              <span className="nav-word">{isLast ? 'Bilan ' : 'Suivant '}</span>›
             </button>
           </div>
         </div>
@@ -156,19 +194,49 @@ export function StudyMode({ plies, moveLabels, flipped, blackName, whiteName }: 
             />
           </div>
           <div className="study-side">
-            <button
-              type="button"
-              className={`btn ${marked ? 'btn-primary study-mark-active' : 'btn-ghost'}`}
-              onClick={() => toggleMark(current.ply)}
-            >
-              {marked ? '⚑ Marqué comme mauvais coup' : 'Marquer comme mauvais coup'}
-            </button>
-            <p className="study-hint">
-              {marks.size} coup{marks.size > 1 ? 's' : ''} marqué{marks.size > 1 ? 's' : ''} sur{' '}
-              {sidePlies.length}.
-            </p>
-            <button className="btn btn-primary" onClick={() => setPhase('result')}>
-              Voir le bilan →
+            {!isJudged ? (
+              <div className="study-judge-buttons">
+                <button
+                  type="button"
+                  className="btn study-btn-bad"
+                  onClick={() => judge(current.ply, true)}
+                >
+                  ✗ Mauvais coup
+                </button>
+                <button
+                  type="button"
+                  className="btn study-btn-good"
+                  onClick={() => judge(current.ply, false)}
+                >
+                  ✓ Bon coup
+                </button>
+              </div>
+            ) : (
+              <>
+                <div
+                  className={`study-verdict-inline ${correct ? 'study-verdict-correct' : 'study-verdict-wrong'}`}
+                >
+                  <strong>{correct ? '✓ Bien vu' : '✗ Raté'}</strong>
+                  <span style={{ color: QUALITY_COLOR[current.quality] }}>
+                    {QUALITY_LABEL_FR[current.quality]}
+                    {current.centipawnLoss > 0
+                      ? ` — perte de ${Math.round(current.centipawnLoss)} cp`
+                      : ''}
+                  </span>
+                  {current.bestMove && current.quality !== 'best' && (
+                    <span>
+                      Coup recommandé :{' '}
+                      {formatUsiMoveAsKif(Position.fromSfen(current.sfenBefore), current.bestMove, null)}
+                    </span>
+                  )}
+                </div>
+                <button className="btn btn-primary" onClick={advance}>
+                  {isLast ? 'Voir le bilan →' : 'Coup suivant →'}
+                </button>
+              </>
+            )}
+            <button className="btn btn-ghost" onClick={() => setPhase('result')}>
+              Voir le bilan à tout moment
             </button>
           </div>
         </div>
