@@ -109,8 +109,6 @@ export function StudyMode({
   const [proposedUsi, setProposedUsi] = useState<string | null>(null);
   const [altAnalyzing, setAltAnalyzing] = useState(false);
   const [altError, setAltError] = useState<string | null>(null);
-  /** Coup d'œil sur l'analyse déjà connue du coup, sans passer par un jugement. */
-  const [peekOpen, setPeekOpen] = useState(false);
   /** Plateau d'exploration libre sur la position affichée, à tout moment. */
   const [exploring, setExploring] = useState(false);
   const [exploreAutoReply, setExploreAutoReply] = useState(true);
@@ -135,7 +133,6 @@ export function StudyMode({
     setPromptPromotion(null);
     setProposedUsi(null);
     setAltError(null);
-    setPeekOpen(false);
     setExploring(false);
   }, [idx, side]);
 
@@ -455,32 +452,6 @@ export function StudyMode({
             />
           </div>
           <div className="study-side">
-            {!judgment && (
-              <div className="study-peek">
-                <button
-                  type="button"
-                  className="btn btn-ghost"
-                  onClick={() => setPeekOpen((v) => !v)}
-                >
-                  {peekOpen ? '🙈 Masquer l\'analyse' : '👁 Voir l\'analyse du moteur'}
-                </button>
-                {peekOpen && (
-                  <div className="study-verdict-inline">
-                    <span style={{ color: QUALITY_COLOR[current.quality] }}>
-                      Analyse : {QUALITY_LABEL_FR[current.quality]}
-                      {current.centipawnLoss > 0
-                        ? ` — perte de ${Math.round(current.centipawnLoss)} cp`
-                        : ''}
-                    </span>
-                    {current.bestMove && current.quality !== 'best' && (
-                      <span>
-                        Coup recommandé : {formatUsiMoveAsKif(positionBefore, current.bestMove, null)}
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
             {isProposing ? (
               <div className="study-propose">
                 {promptPromotion && (
