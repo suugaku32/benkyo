@@ -1,0 +1,50 @@
+.explore-hint {
+  font-size: 12px;
+  color: var(--dim);
+}
+
+.explore-branch {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--blue);
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.explore-branch-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.explore-branch-label {
+  color: var(--dim);
+}
+
+.explore-eval {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.explore-thinking {
+  color: var(--gold);
+}
+
+/* La variante peut devenir longue ; elle passe à la ligne plutôt que d'élargir
+   la colonne du plateau. */
+.explore-moves {
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.explore-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}

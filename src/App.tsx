@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Board } from './components/Board';
 import type { BoardArrow } from './components/Board';
 import { EvalGraph } from './components/EvalGraph';
+import { ExploreBoard } from './components/ExploreBoard';
 import { KifuInput } from './components/KifuInput';
 import { MoveList } from './components/MoveList';
 import { StudyMode } from './components/StudyMode';
@@ -61,6 +61,15 @@ export default function App() {
   const [flipped, setFlipped] = useState(initialSettings.flipped);
   const [showBestArrow, setShowBestArrow] = useState(initialSettings.showBestArrow);
   const [focusSide, setFocusSide] = useState<'both' | 'b' | 'w'>(initialSettings.focusSide);
+  /** Temps de réflexion du moteur dans le plateau d'exploration — pas persisté : chaque session repart à 1 s. */
+  const [replyMs, setReplyMs] = useState(1000);
+  /*
+   * Le moteur répond-il aux coups joués sur le plateau d'analyse ? Décoché, les
+   * deux camps se jouent à la main : c'est ce qu'il faut pour dérouler une idée
+   * à soi, ou rejouer une variante lue ailleurs, sans qu'un adversaire s'invite
+   * à chaque coup.
+   */
+  const [autoReply, setAutoReply] = useState(true);
   /** Variante rejouée par-dessus la partie : d'où elle part, ses coups, et où on en est. */
   const [variation, setVariation] = useState<{
     baseSfen: string;
@@ -393,6 +402,26 @@ export default function App() {
                 >
                   {showBestArrow ? '↗ Flèches affichées' : '↗ Flèches masquées'}
                 </button>
+                {/* Le plateau d'analyse est jouable : ces deux réglages décident
+                    si un adversaire s'invite dans les coups qu'on y explore. */}
+                <button
+                  className="btn btn-ghost"
+                  onClick={() => setAutoReply((v) => !v)}
+                  title="Coché, le moteur répond à vos coups joués sur le plateau d'analyse"
+                >
+                  {autoReply ? '🤖 Moteur : répond' : '🤖 Moteur : coupé'}
+                </button>
+                <label className="focus-control">
+                  Réponse du moteur
+                  <select value={replyMs} onChange={(e) => setReplyMs(Number(e.target.value))}>
+                    <option value={200}>200 ms</option>
+                    <option value={500}>500 ms</option>
+                    <option value={1000}>1 s</option>
+                    <option value={2000}>2 s</option>
+                    <option value={5000}>5 s</option>
+                    <option value={10000}>10 s</option>
+                  </select>
+                </label>
                 {/* La cadence est ici, et pas seulement sur l'écran de saisie :
                     sans elle, « réanalyser » referait exactement la même chose. */}
                 <label className="focus-control">
@@ -576,14 +605,25 @@ export default function App() {
               </div>
               <div className="analysis-body">
                 <div className="analysis-board">
+                  {/*
+                    Le plateau d'analyse est jouable : « et si j'avais joué ça ? »
+                    est la question qu'on se pose devant une partie, et à
+                    laquelle une courbe ne répond pas. Il reçoit la position
+                    affichée — celle de la partie, ou celle d'une variante
+                    qu'on parcourt.
+                  */}
                   {shownPosition && (
-                    <Board
-                      position={shownPosition}
-                      lastMove={lastMove}
+                    <ExploreBoard
+                      baseSfen={shownPosition.toSfen()}
+                      ensureEngine={ensureEngine}
                       flipped={flipped}
-                      arrows={arrows}
+                      gameArrows={arrows}
+                      lastMove={lastMove}
                       blackName={game.black}
                       whiteName={game.white}
+                      replyMs={replyMs}
+                      autoReply={autoReply}
+                      showArrow={showBestArrow}
                     />
                   )}
                   {variation && (
