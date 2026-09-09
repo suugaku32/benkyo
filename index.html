@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      Tout est servi depuis l'origine du site : aucune requête réseau sortante,
+      aucun CDN. 'wasm-unsafe-eval' est requis pour instancier le moteur WASM ;
+      'unsafe-inline' en style- car les composants posent des styles inline.
+      Pas de frame-ancestors : cette directive n'existe qu'en en-tête HTTP, que
+      GitHub Pages ne permet pas de définir.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <meta
+      name="description"
+      content="Analysez vos parties de shogi dans le navigateur : courbe d'évaluation, détection des gaffes et mode entraînement."
+    />
+    <title>将棋 — Analyseur de parties</title>
+    <!--
+      GitHub Pages ne permet pas d'envoyer les en-têtes COOP/COEP nécessaires à
+      SharedArrayBuffer (moteur WASM multi-thread). coi-serviceworker les injecte
+      côté client. Doit rester avant le bundle applicatif.
+    -->
+    <script src="./theme-init.js"></script>
+    <script src="./boot-check.js"></script>
+    <script src="./coi-config.js"></script>
+    <script src="./coi-serviceworker.js"></script>
+    <script type="module" crossorigin src="./assets/index-C8MiYK1u.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-vID0r-T6.css">
+  </head>
+  <body>
+    <!--
+      Contenu de repli : React le remplace au montage. S'il reste visible, c'est
+      que le bundle n'a pas pu s'exécuter — typiquement un index.html gardé en
+      cache qui référence un nom de bundle disparu au déploiement suivant, Vite
+      renommant les fichiers à chaque build. Sans ça, ce cas donne un écran blanc
+      muet, impossible à diagnostiquer et déroutant.
+    -->
+    <div id="root">
+      <div
+        style="
+          max-width: 34rem;
+          margin: 15vh auto;
+          padding: 0 1.5rem;
+          font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+          color: #eaeaea;
+          line-height: 1.6;
+        "
+      >
+        <h1 style="font-size: 1.25rem; margin-bottom: 0.75rem">将棋 — Analyseur de parties</h1>
+        <p style="color: #888; margin-bottom: 1rem">
+          L'application n'a pas pu démarrer. C'est presque toujours une version
+          périmée gardée en cache par le navigateur.
+        </p>
+        <p style="margin-bottom: 1.25rem">
+          <a
+            href="?reset-sw"
+            style="
+              display: inline-block;
+              background: #2980b9;
+              color: #fff;
+              padding: 0.6rem 1.1rem;
+              border-radius: 0.6rem;
+              text-decoration: none;
+              font-weight: 600;
+            "
+            >Réinitialiser et recharger</a
+          >
+        </p>
+        <p style="color: #888; font-size: 0.85rem">
+          Si le problème persiste, videz les données de site pour
+          <code>suugaku32.github.io</code> dans les réglages du navigateur.
+        </p>
+        <p style="color: #666; font-size: 0.75rem; margin-top: 0.75rem">
+          Version de la page : <code>2026-09-09 08:16 UTC</code>
+        </p>
+        <pre
+          id="boot-diagnostic"
+          style="
+            display: none;
+            white-space: pre-wrap;
+            word-break: break-word;
+            background: #16213e;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            font-size: 0.7rem;
+            color: #c3c2b7;
+            margin-top: 1.25rem;
+          "
+        ></pre>
+      </div>
+    </div>
+  </body>
+</html>
