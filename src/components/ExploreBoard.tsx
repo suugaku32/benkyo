@@ -336,16 +336,19 @@ export function ExploreSettings({
       </label>
       <label className="explore-time">
         <span>Temps de réflexion</span>
-        <input
-          type="range"
-          min={200}
-          max={10000}
-          step={100}
+        <select
           value={replyMs}
           onChange={(e) => onReplyMs(Number(e.target.value))}
           aria-label="Temps de réflexion du moteur"
-        />
-        <output>{(replyMs / 1000).toFixed(1).replace('.', ',')} s</output>
+        >
+          <option value={200}>0,2 s</option>
+          <option value={500}>0,5 s</option>
+          <option value={1000}>1 s</option>
+          <option value={2000}>2 s</option>
+          <option value={3000}>3 s</option>
+          <option value={4000}>4 s</option>
+          <option value={5000}>5 s</option>
+        </select>
       </label>
     </div>
   );

@@ -80,21 +80,8 @@
   color: var(--dim);
 }
 
-.explore-time input[type='range'] {
-  flex: 1;
-  min-width: 80px;
-  accent-color: var(--accent);
-}
-
-.explore-time output {
-  font-variant-numeric: tabular-nums;
-  min-width: 46px;
-  text-align: right;
-  color: var(--text);
-}
-
 @media (pointer: coarse) {
-  .explore-time input[type='range'] {
-    height: 28px;
+  .explore-time select {
+    min-height: 28px;
   }
 }
