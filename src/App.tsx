@@ -4,7 +4,6 @@ import { EvalGraph } from './components/EvalGraph';
 import { ExploreBoard, ExploreSettings } from './components/ExploreBoard';
 import { KifuInput } from './components/KifuInput';
 import { MoveList } from './components/MoveList';
-import { QuizMode } from './components/QuizMode';
 import { StudyMode } from './components/StudyMode';
 import { TrainingMode } from './components/TrainingMode';
 import { TsumeMode } from './components/TsumeMode';
@@ -35,19 +34,7 @@ import type { Theme } from './theme';
 import { useWakeLock } from './useWakeLock';
 import './App.css';
 
-type Tab = 'analysis' | 'training' | 'tsume' | 'quiz' | 'study';
-
-/** Taille du quiz « bon coup ou pas » — voir `focusedQuizItems`. */
-const QUIZ_SIZE = 10;
-
-function shuffled<T>(items: T[]): T[] {
-  const out = items.slice();
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [out[i], out[j]] = [out[j], out[i]];
-  }
-  return out;
-}
+type Tab = 'analysis' | 'training' | 'tsume' | 'study';
 
 type Phase =
   | { kind: 'input' }
@@ -349,29 +336,6 @@ export default function App() {
     [result, focusSide],
   );
 
-  /*
-   * Dix coups, moitié bons (best/good) moitié mauvais (mistake/blunder),
-   * mélangés : le but est de reconnaître un bon coup, pas de le produire, un
-   * réflexe différent de l'entraînement — qui ne demanderait rien à deviner
-   * si le tirage ne contenait que des gaffes. L'imprécision (2 à 10 % de
-   * perte) reste hors des deux réservoirs : ni clairement bonne ni clairement
-   * mauvaise, elle rendrait la bonne réponse arbitraire.
-   *
-   * L'un des deux réservoirs peut manquer (partie sans une seule gaffe, ou au
-   * contraire désastreuse d'un bout à l'autre) ; l'autre comble alors le
-   * quota plutôt que de réduire le quiz sans raison.
-   */
-  const focusedQuizItems = useMemo(() => {
-    const good = shuffled(focusedPlies.filter((p) => p.quality === 'best' || p.quality === 'good'));
-    const bad = shuffled(focusedPlies.filter((p) => p.quality === 'mistake' || p.quality === 'blunder'));
-    const half = Math.ceil(QUIZ_SIZE / 2);
-    const pickedGood = good.slice(0, half);
-    const pickedBad = bad.slice(0, QUIZ_SIZE - pickedGood.length);
-    const rest = QUIZ_SIZE - pickedGood.length - pickedBad.length;
-    const leftover = shuffled([...good.slice(pickedGood.length), ...bad.slice(pickedBad.length)]);
-    return shuffled([...pickedGood, ...pickedBad, ...leftover.slice(0, rest)]);
-  }, [focusedPlies]);
-
   const summary = useMemo(() => {
     if (!result) return null;
     const bySide = {
@@ -555,12 +519,6 @@ export default function App() {
                 onClick={() => setTab('tsume')}
               >
                 Tsume ({focusedTsumes.length})
-              </button>
-              <button
-                className={`tab${tab === 'quiz' ? ' active' : ''}`}
-                onClick={() => setTab('quiz')}
-              >
-                Quiz ({focusedQuizItems.length})
               </button>
               <button
                 className={`tab${tab === 'study' ? ' active' : ''}`}
@@ -792,13 +750,6 @@ export default function App() {
               tsumes={focusedTsumes}
               ensureEngine={ensureEngine}
               movetimeMs={movetimeMs}
-              flipped={flipped}
-              blackName={game.black}
-              whiteName={game.white}
-            />
-          ) : tab === 'quiz' ? (
-            <QuizMode
-              items={focusedQuizItems}
               flipped={flipped}
               blackName={game.black}
               whiteName={game.white}
