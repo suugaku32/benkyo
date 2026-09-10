@@ -114,6 +114,17 @@ export default function App() {
   }, []);
 
   /*
+   * Choisir un joueur à suivre n'a d'intérêt que si le plateau se retourne
+   * pour le mettre en bas : sinon on suit Gote tout en continuant de lire
+   * le plateau depuis le camp de Sente.
+   */
+  const selectFocusSide = useCallback((side: 'both' | 'b' | 'w') => {
+    setFocusSide(side);
+    if (side === 'b') setFlipped(false);
+    else if (side === 'w') setFlipped(true);
+  }, []);
+
+  /*
    * Le moteur était créé uniquement par `runAnalysis`. Une partie rouverte
    * depuis l'historique n'en avait donc aucun, et l'entraînement comme les
    * tsume refusaient chaque coup sans rien afficher : on jouait, rien ne se
@@ -374,7 +385,7 @@ export default function App() {
                   Suivre
                   <select
                     value={focusSide}
-                    onChange={(e) => setFocusSide(e.target.value as 'both' | 'b' | 'w')}
+                    onChange={(e) => selectFocusSide(e.target.value as 'both' | 'b' | 'w')}
                   >
                     <option value="both">Les deux joueurs</option>
                     <option value="b">▲ {game.black || 'Sente'}</option>
@@ -523,11 +534,17 @@ export default function App() {
             <div className="summary">
               {(['b', 'w'] as const).map((side) => (
                 <div className="summary-card" key={side}>
-                  <span className="summary-side">
+                  <button
+                    type="button"
+                    className={`summary-side${focusSide === side ? ' active' : ''}`}
+                    onClick={() => selectFocusSide(side)}
+                    title="Suivre ce joueur et retourner le plateau de son côté"
+                    aria-pressed={focusSide === side}
+                  >
                     {side === 'b' ? '▲ Sente' : '△ Gote'}
                     {side === 'b' && game.black ? ` — ${game.black}` : ''}
                     {side === 'w' && game.white ? ` — ${game.white}` : ''}
-                  </span>
+                  </button>
                   <span className="summary-stats">
                     <em style={{ color: 'var(--status-inaccuracy)' }}>
                       {summary[side].inaccuracy} {QUALITY_LABEL_FR.inaccuracy.toLowerCase()}
