@@ -310,6 +310,8 @@ export function TrainingMode({
     from: usi[1] === '*' ? null : usiToSquare(usi.slice(0, 2)),
     to: usiToSquare(usi.slice(2, 4)),
     kind,
+    // `P*7f` : la lettre de tête est la pièce parachutée.
+    piece: usi[1] === '*' ? (usi[0] as PieceType) : undefined,
   });
   if (replayView) {
     if (replayView.next) arrows.push(toArrow(replayView.next, 'best'));

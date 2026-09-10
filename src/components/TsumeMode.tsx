@@ -377,6 +377,8 @@ export function TsumeMode({
         from: next[1] === '*' ? null : usiToSquare(next.slice(0, 2)),
         to: usiToSquare(next.slice(2, 4)),
         kind: 'best',
+        // `P*7f` : la lettre de tête est la pièce parachutée.
+        piece: next[1] === '*' ? (next[0] as PieceType) : undefined,
       });
     }
   } else if (state.kind === 'revealed' && solution[0]) {
@@ -385,6 +387,7 @@ export function TsumeMode({
       from: first[1] === '*' ? null : usiToSquare(first.slice(0, 2)),
       to: usiToSquare(first.slice(2, 4)),
       kind: 'best',
+      piece: first[1] === '*' ? (first[0] as PieceType) : undefined,
     });
   }
 

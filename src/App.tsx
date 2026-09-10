@@ -26,7 +26,7 @@ import { parseKifu } from './shogi/parser';
 import type { ParsedGame } from './shogi/parser';
 import { Position } from './shogi/position';
 import { formatUsiMoveAsKif } from './shogi/notation';
-import type { Square } from './shogi/types';
+import type { PieceType, Square } from './shogi/types';
 import { usiToSquare } from './shogi/types';
 import { loadSettings, saveSettings } from './storage/settings';
 import { THEMES, THEME_LABEL_FR, applyTheme, loadTheme } from './theme';
@@ -297,6 +297,8 @@ export default function App() {
     from: usi[1] === '*' ? null : usiToSquare(usi.slice(0, 2)),
     to: usiToSquare(usi.slice(2, 4)),
     kind,
+    // `P*7f` : la lettre de tête est la pièce parachutée.
+    piece: usi[1] === '*' ? (usi[0] as PieceType) : undefined,
   });
 
   // Dans une variante on annonce le coup suivant de la ligne ; sinon le meilleur

@@ -9,6 +9,9 @@ export interface BoardArrow {
   from: Square | null; // null = drop, marked on the destination instead
   to: Square;
   kind: 'best' | 'played';
+  /** Pièce parachutée. Renseignée pour un drop seulement : le cercle dit où,
+   *  il faut bien que quelque chose dise quoi. */
+  piece?: PieceType;
 }
 
 export interface BoardProps {
@@ -151,15 +154,41 @@ export function Board({
                 {arrows.map((a, i) => {
                   const to = centreOf(a.to);
                   if (!a.from) {
-                    // A drop has no origin: ring the square instead of pointing at it.
+                    /*
+                     * Un parachutage n'a pas d'origine : on cercle la case au
+                     * lieu de pointer vers elle. Le cercle seul ne dit que
+                     * l'endroit, jamais quelle pièce tombe — le kanji va donc
+                     * au centre, où il ne masque rien : une pièce ne peut être
+                     * parachutée que sur une case vide.
+                     */
                     return (
-                      <circle
-                        key={i}
-                        cx={to.x}
-                        cy={to.y}
-                        r={cellSize * 0.38}
-                        className={`arrow-drop arrow-${a.kind}`}
-                      />
+                      <g key={i}>
+                        <circle
+                          cx={to.x}
+                          cy={to.y}
+                          r={cellSize * 0.38}
+                          className={`arrow-drop arrow-${a.kind}`}
+                        />
+                        {a.piece && (
+                          <text
+                            x={to.x}
+                            y={to.y}
+                            className={`arrow-drop-piece arrow-${a.kind}`}
+                            textAnchor="middle"
+                            dominantBaseline="central"
+                            fontSize={Math.round(cellSize * 0.5)}
+                            // Une pièce parachutée se pose dans le sens de son
+                            // camp, comme toutes les autres.
+                            transform={
+                              (position.turn === 'w') !== flipped
+                                ? `rotate(180 ${to.x} ${to.y})`
+                                : undefined
+                            }
+                          >
+                            {pieceGlyph(a.piece, false)}
+                          </text>
+                        )}
+                      </g>
                     );
                   }
                   const from = centreOf(a.from);

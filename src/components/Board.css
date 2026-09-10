@@ -71,6 +71,28 @@
   opacity: 0.9;
 }
 
+/* Le kanji occupe le centre du cercle, sur une case forcément vide. Un liseré
+   fin suffit à le décoller des lignes du plateau qui passent dessous. */
+.arrow-drop-piece {
+  font-family: 'Hiragino Mincho ProN', 'Noto Serif JP', serif;
+  font-weight: 700;
+  stroke-width: 2;
+  paint-order: stroke fill;
+}
+
+/* Le contour est repris dans les deux sélecteurs composés : `.arrow-best`
+   imposerait sinon sa propre couleur de trait, à égalité de spécificité et
+   plus bas dans le fichier. */
+.arrow-drop-piece.arrow-best {
+  fill: var(--status-good);
+  stroke: var(--bg);
+}
+
+.arrow-drop-piece.arrow-played {
+  fill: var(--status-blunder);
+  stroke: var(--bg);
+}
+
 .arrow-best,
 .arrow-line.arrow-best {
   stroke: var(--status-good);

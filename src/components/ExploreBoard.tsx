@@ -126,6 +126,8 @@ export function ExploreBoard({
                 from: r.bestMove[1] === '*' ? null : usiToSquare(r.bestMove.slice(0, 2)),
                 to: usiToSquare(r.bestMove.slice(2, 4)),
                 kind: 'best',
+                // `P*7f` : la lettre de tête est la pièce parachutée.
+                piece: r.bestMove[1] === '*' ? (r.bestMove[0] as PieceType) : undefined,
               }
             : null,
         );
