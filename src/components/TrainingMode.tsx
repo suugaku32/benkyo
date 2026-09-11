@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Board } from './Board';
 import { VariationBar } from './VariationBar';
 import type { BoardArrow } from './Board';
@@ -18,8 +18,9 @@ const ACCEPT_MARGIN_CP = 50;
 type Verdict =
   | { kind: 'idle' }
   | { kind: 'checking' }
-  | { kind: 'correct'; playedCp: number; bestCp: number; usi: string; pv: string[] }
-  | { kind: 'wrong'; playedCp: number; bestCp: number; usi: string; pv: string[] }
+  /** `exact` : le coup proposé *est* celui du moteur, pas seulement un coup toléré. */
+  | { kind: 'correct'; playedCp: number; bestCp: number; usi: string; pv: string[]; exact: boolean }
+  | { kind: 'wrong'; playedCp: number; bestCp: number; usi: string; pv: string[]; exact: false }
   /** Le moteur n'a pas pu démarrer : sans lui, impossible de juger un coup. */
   | { kind: 'engineError'; message: string }
   | { kind: 'revealed' };
@@ -60,12 +61,6 @@ export function TrainingMode({
   const [solved, setSolved] = useState<Set<number>>(new Set());
   /** Suite en cours de lecture : quelle ligne, et combien de coups rejoués. */
   const [replay, setReplay] = useState<{ line: Line; index: number } | null>(null);
-  /**
-   * Score de référence par gaffe, indexé par numéro de coup : celui du meilleur
-   * coup, mesuré dans les mêmes conditions que la proposition de l'utilisateur.
-   * Une gaffe garde le sien tant qu'on y revient.
-   */
-  const baselineRef = useRef<Map<number, number>>(new Map());
 
   const current = blunders[idx];
 
@@ -130,54 +125,34 @@ export function TrainingMode({
     const playedCp = -scoreToCp(after.scoreCp, after.scoreMate);
 
     /*
-     * La référence doit venir de la *même* mesure que la proposition.
+     * Une seule mesure, jamais deux.
      *
-     * Elle valait `current.evalBeforeCp`, c'est-à-dire le score de la position
-     * d'avant, issu de l'analyse. On comparait donc deux recherches portant sur
-     * deux positions différentes : jouer le meilleur coup pouvait rendre un
-     * score inférieur au score de la position de départ — instabilité ordinaire
-     * de la recherche — et se faire refuser. Le bon coup était rejeté.
+     * La référence est `current.evalBeforeCp` : le score de la position d'avant,
+     * établi par l'analyse elle-même. C'est par définition la valeur du meilleur
+     * coup, puisque c'est cette recherche qui l'a désigné. La recalculer en
+     * jouant `bestMove` produisait un second chiffre, voisin mais différent, qui
+     * contredisait la valeur affichée dans l'onglet Analyse — et pouvait rendre
+     * un coup toléré « meilleur » que le meilleur. Deux mesures d'une même chose
+     * ne s'accordent pas au centième près ; il n'y avait aucune raison d'en
+     * produire une seconde.
      *
-     * On évalue donc le meilleur coup dans les mêmes conditions, une fois par
-     * gaffe. Et jouer exactement le coup recommandé n'a plus besoin d'être
-     * mesuré du tout : il est juste par définition.
+     * Jouer exactement le coup recommandé ne demande alors plus de mesure du
+     * tout : il est juste par construction. C'était le vrai défaut d'origine —
+     * la recherche partant de la position d'après pouvait rendre un score
+     * inférieur à celui de la position de départ, instabilité ordinaire, et le
+     * bon coup se faisait refuser.
      */
-    let bestCp: number;
-    if (current.bestMove && usi === current.bestMove) {
-      bestCp = playedCp;
-    } else if (current.bestMove) {
-      const cached = baselineRef.current.get(current.ply);
-      if (cached !== undefined) {
-        bestCp = cached;
-      } else {
-        const ref = await engine.analyze(current.sfenBefore, [current.bestMove], { movetimeMs });
-        bestCp = -scoreToCp(ref.scoreCp, ref.scoreMate);
-        baselineRef.current.set(current.ply, bestCp);
-      }
-    } else {
-      // Pas de coup recommandé connu : faute de mieux, l'ancienne référence.
-      bestCp = current.evalBeforeCp;
-    }
+    const exact = !!current.bestMove && usi === current.bestMove;
+    const bestCp = exact ? playedCp : current.evalBeforeCp;
     const correct = bestCp - playedCp <= ACCEPT_MARGIN_CP;
     // La variante renvoyée part de la position d'après le coup proposé : c'est
     // elle qui montre ce que devient la partie, et donc pourquoi le coup tient.
     if (correct) {
       setSolved((s) => new Set(s).add(idx));
-      setVerdict({ kind: 'correct', playedCp, bestCp, usi, pv: after.pv });
+      setVerdict({ kind: 'correct', playedCp, bestCp, usi, pv: after.pv, exact });
     } else {
       flashError(usiToSquare(usi.slice(2, 4)));
-      setVerdict({ kind: 'wrong', playedCp, bestCp, usi, pv: after.pv });
-    }
-  };
-
-  /** Position obtenue après un coup joué depuis la position de l'exercice. */
-  const sfenAfterUsi = (usi: string): string | null => {
-    try {
-      const p = Position.fromSfen(current.sfenBefore);
-      p.applyUsiMove(usi);
-      return p.toSfen();
-    } catch {
-      return null;
+      setVerdict({ kind: 'wrong', playedCp, bestCp, usi, pv: after.pv, exact: false });
     }
   };
 
@@ -248,18 +223,36 @@ export function TrainingMode({
   // elles donneraient la réponse.
   const lines: Line[] = [];
   if (verdict.kind === 'correct' || verdict.kind === 'wrong') {
-    const base = sfenAfterUsi(verdict.usi);
-    if (base && verdict.pv.length) {
+    /*
+     * Les deux variantes partent de la *même* position, celle de l'exercice, et
+     * commencent chacune par son propre coup. Auparavant « Meilleure suite »
+     * incluait le coup du moteur tandis que celle-ci démarrait après le coup
+     * proposé : on comparait donc deux colonnes décalées d'un demi-coup, l'une
+     * ouvrant sur un coup de Sente et l'autre sur la réponse de Gote.
+     */
+    if (verdict.pv.length) {
       lines.push({
         label: verdict.kind === 'correct' ? 'Votre coup, la suite' : 'Après votre coup',
         tone: verdict.kind === 'correct' ? 'best' : 'played',
-        baseSfen: base,
-        moves: verdict.pv,
+        baseSfen: current.sfenBefore,
+        moves: [verdict.usi, ...verdict.pv],
       });
     }
   }
   if (verdict.kind === 'revealed' || verdict.kind === 'correct') {
-    if (current.bestMovePv.length) {
+    /*
+     * Quand le coup proposé *est* celui du moteur, « Meilleure suite » fait
+     * doublon avec « Votre coup, la suite » : même premier coup, donc même
+     * position. Les deux lignes divergent pourtant dès le deuxième coup, l'une
+     * venant de la recherche faite à l'instant et l'autre de celle de
+     * l'analyse. C'est une transposition, pas un désaccord — mais rien ne le
+     * dit à l'écran, et deux variantes pour un seul coup n'apprennent rien.
+     *
+     * On la garde partout ailleurs : dévoilée, elle *est* la réponse ; face à
+     * un coup différent, elle montre ce qu'il fallait jouer.
+     */
+    const redondante = verdict.kind === 'correct' && verdict.exact;
+    if (current.bestMovePv.length && !redondante) {
       lines.push({
         label: 'Meilleure suite',
         tone: 'best',
@@ -267,15 +260,21 @@ export function TrainingMode({
         moves: current.bestMovePv,
       });
     }
-    if (current.refutationPv.length) {
-      lines.push({
-        label: 'Ce qui a suivi',
-        tone: 'played',
-        baseSfen: current.sfenAfter,
-        moves: current.refutationPv,
-      });
-    }
   }
+
+  /*
+   * La ligne « meilleure suite » — ou, quand le coup proposé l'est déjà,
+   * « Votre coup, la suite » qui porte alors le même ton : les chevrons
+   * flottants n'ont qu'une suite à dérouler, jamais deux à la fois.
+   */
+  const bestLine = lines.find((l) => l.tone === 'best') ?? null;
+  const stepBestLine = (delta: -1 | 1) => {
+    if (!bestLine) return;
+    const at = replay?.line.label === bestLine.label ? replay.index : 0;
+    const next = at + delta;
+    if (next < 0 || next > bestLine.moves.length) return;
+    setReplay(next === 0 ? null : { line: bestLine, index: next });
+  };
 
   // Le plateau suit la suite en cours de lecture, sinon la position de l'exercice.
   // Pas de useMemo ici : ce code vit après le retour anticipé plus haut, et un
@@ -334,6 +333,7 @@ export function TrainingMode({
     ? formatUsiMoveAsKif(position, current.bestMove, null)
     : '—';
   const actualLabel = formatUsiMoveAsKif(position, current.moveUsi, null);
+  const bestLineAt = bestLine && replay?.line.label === bestLine.label ? replay.index : 0;
 
   return (
     <div className="training">
@@ -356,24 +356,32 @@ export function TrainingMode({
           </label>
           <span className="training-solved">{solved.size} résolue(s)</span>
         </div>
-        <div className="training-nav">
-          <button
-            className="btn btn-ghost"
-            onClick={() => goTo(idx - 1)}
-            disabled={idx === 0}
-            aria-label="Gaffe précédente"
-          >
-            ‹<span className="nav-word"> Précédente</span>
-          </button>
-          <button
-            className="btn btn-ghost"
-            onClick={() => goTo(idx + 1)}
-            disabled={idx >= blunders.length - 1}
-            aria-label="Gaffe suivante"
-          >
-            <span className="nav-word">Suivante </span>›
-          </button>
-        </div>
+        {/*
+          N'apparaissent qu'une fois la solution affichée (résolue ou
+          dévoilée) — avant, il n'y a pas de suite à dérouler, et les
+          afficher inactifs n'aurait rien appris de plus que le sélecteur
+          ci-dessus, qui reste la façon de changer de gaffe à revoir.
+        */}
+        {bestLine && (
+          <div className="training-nav float-nav">
+            <button
+              className="btn btn-ghost"
+              onClick={() => stepBestLine(-1)}
+              disabled={bestLineAt === 0}
+              aria-label="Coup précédent de la meilleure suite"
+            >
+              ‹<span className="nav-word"> Précédente</span>
+            </button>
+            <button
+              className="btn btn-ghost"
+              onClick={() => stepBestLine(1)}
+              disabled={bestLineAt >= bestLine.moves.length}
+              aria-label="Coup suivant de la meilleure suite"
+            >
+              <span className="nav-word">Suivante </span>›
+            </button>
+          </div>
+        )}
       </div>
 
       <p className="training-prompt">
@@ -438,12 +446,41 @@ export function TrainingMode({
           {(verdict.kind === 'correct' || verdict.kind === 'wrong') && (
             <div className={`verdict verdict-${verdict.kind}`}>
               <strong>
-                {verdict.kind === 'correct' ? '✓ Bien joué' : '✗ Insuffisant'} — {playedLabel}
+                {verdict.kind === 'wrong'
+                  ? '✗ Insuffisant'
+                  : verdict.exact
+                    ? '✓ C’est le coup du moteur'
+                    : '✓ Coup acceptable'}{' '}
+                — {playedLabel}
               </strong>
+              {/*
+               * Ne jamais laisser croire qu'un coup toléré est *le* coup du
+               * moteur : la suite affichée plus bas part d'un autre coup, et
+               * l'écart est incompréhensible tant qu'on n'a pas dit lequel.
+               */}
+              {!verdict.exact && current.bestMove && (
+                <span>
+                  Le moteur jouait <strong className="training-best">{bestLabel}</strong>
+                </span>
+              )}
               <span>
-                Votre coup : {Math.round(verdict.playedCp)} · Meilleur :{' '}
-                {Math.round(verdict.bestCp)}
+                Votre coup : {Math.round(verdict.playedCp)}
+                {!verdict.exact && ` · analyse : ${Math.round(verdict.bestCp)}`}
               </span>
+              {/*
+               * Le second chiffre n'est pas une nouvelle mesure : c'est celui de
+               * l'analyse, le même que dans l'onglet Analyse. Le premier vient
+               * d'être établi. Deux recherches ne s'accordent pas au centième
+               * près, et le coup proposé peut afficher un point de plus sans
+               * pour autant valoir mieux — le dire évite d'y lire une
+               * contradiction.
+               */}
+              {!verdict.exact && current.bestMove && (
+                <span className="verdict-note">
+                  Le second chiffre vient de l’analyse, pas d’un nouveau calcul. Un écart de cet
+                  ordre ne départage pas les deux coups.
+                </span>
+              )}
               {verdict.kind === 'wrong' && (
                 <button className="btn btn-ghost" onClick={() => setVerdict({ kind: 'idle' })}>
                   Réessayer

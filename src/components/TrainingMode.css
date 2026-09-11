@@ -70,6 +70,32 @@
   gap: 8px;
 }
 
+/*
+ * Chevrons pour dérouler la meilleure suite coup par coup, sans chasser la
+ * barre de variante plus bas. Sur téléphone, le geste qu'on répète le plus
+ * quitte le flux et se pose en bas à droite de l'écran, sous le pouce.
+ */
+@media (max-width: 860px) {
+  .float-nav {
+    position: fixed;
+    right: 10px;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
+    z-index: 30;
+    gap: 8px;
+  }
+
+  .float-nav .btn.btn-ghost {
+    width: 56px;
+    height: 52px;
+    padding: 0;
+    font-size: 24px;
+    line-height: 1;
+    border-radius: 16px;
+    background: var(--surface2);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  }
+}
+
 .training-prompt {
   font-size: 14px;
   color: var(--text);
@@ -214,6 +240,22 @@
 
 .training-played {
   color: var(--status-blunder);
+}
+
+.training-best {
+  color: var(--status-good);
+}
+
+/* Le coup cité dans une phrase reste à la taille de la phrase : la règle
+   `.verdict strong` vise le titre du verdict, pas les incises. */
+.verdict .training-best {
+  font-size: inherit;
+}
+
+.verdict-note {
+  color: var(--dim);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .training-lines {
