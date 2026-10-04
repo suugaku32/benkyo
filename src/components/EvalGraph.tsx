@@ -17,6 +17,12 @@ interface EvalGraphProps {
    * rangée séparée coûtait une ligne d'écran pour rien.
    */
   navControls?: ReactNode;
+  /**
+   * Nombre de points de la courbe une fois l'analyse terminée. Tant qu'elle se
+   * poursuit, la courbe ne couvre que le début : l'axe garde pourtant la
+   * longueur de la partie, pour qu'elle s'allonge sans que tout se déplace.
+   */
+  totalPoints?: number;
   /** Bouton « Meilleure suite », à droite de la même rangée. */
   lineControl?: ReactNode;
   /**
@@ -80,6 +86,7 @@ export function EvalGraph({
   navControls,
   lineControl,
   spoiler,
+  totalPoints,
 }: EvalGraphProps) {
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
 
@@ -89,7 +96,8 @@ export function EvalGraph({
   const scaleY = innerH / 2;
 
   const n = evalCurve.length;
-  const xAt = (i: number) => PAD_X + (n <= 1 ? 0 : (i / (n - 1)) * innerW);
+  const axisN = Math.max(totalPoints ?? n, n);
+  const xAt = (i: number) => PAD_X + (axisN <= 1 ? 0 : (i / (axisN - 1)) * innerW);
   const yAt = (i: number) => midY - displayValue(evalCurve[i].cpForBlack) * scaleY;
 
   let linePath = '';
@@ -108,8 +116,8 @@ export function EvalGraph({
     const svg = evt.currentTarget;
     const rect = svg.getBoundingClientRect();
     const relX = ((evt.clientX - rect.left) / rect.width) * WIDTH;
-    const idx = n <= 1 ? 0 : Math.round(((relX - PAD_X) / innerW) * (n - 1));
-    setHoverIdx(Math.max(0, Math.min(n - 1, idx)));
+    const idx = axisN <= 1 ? 0 : Math.round(((relX - PAD_X) / innerW) * (axisN - 1));
+    setHoverIdx(Math.max(0, Math.min(axisN - 1, idx)));
   };
 
   const activeIdx = hoverIdx ?? currentPly;

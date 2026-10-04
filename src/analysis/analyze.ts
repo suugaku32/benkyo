@@ -101,7 +101,19 @@ export interface AnalyzeGameOptions {
   movetimeMs?: number;
   depth?: number;
   onProgress?: (phase: AnalysisPhase, done: number, total: number) => void;
+  /**
+   * Appelé après chaque position balayée, avec tout ce qu'on sait déjà. Un coup
+   * n'est classé qu'une fois évaluées la position d'avant et celle d'après : le
+   * résultat partiel a donc toujours un coup de retard sur le balayage.
+   */
+  onPartial?: (partial: PartialAnalysis) => void;
   signal?: AbortSignal;
+}
+
+/** Les coups déjà classés et la courbe déjà tracée, pendant que l'analyse se poursuit. */
+export interface PartialAnalysis {
+  plies: PlyEval[];
+  evalCurve: EvalPoint[];
 }
 
 /** Ce que le moteur rapporte pour une position donnée. */
@@ -111,6 +123,70 @@ interface PositionEval {
   mate: number | null;
   bestMove: string | null;
   pv: string[];
+}
+
+/**
+ * Classe les coups dont on connaît les deux positions voisines.
+ *
+ * `evals[i]` est l'évaluation de la position après `i` coups : le coup `i + 1`
+ * a besoin de `evals[i]` et `evals[i + 1]`. Appelée sur un tableau encore
+ * incomplet, elle rend donc le début de la partie ; sur le tableau complet, la
+ * partie entière — c'est le même calcul dans les deux cas.
+ */
+function buildPlies(
+  startSfen: string,
+  sfens: string[],
+  moves: string[],
+  evals: PositionEval[],
+): PartialAnalysis {
+  const plies: PlyEval[] = [];
+  const evalCurve: EvalPoint[] = [];
+  if (evals.length === 0) return { plies, evalCurve };
+
+  const posAt = Position.fromSfen(startSfen);
+  evalCurve.push({
+    ply: 0,
+    cpForBlack: posAt.turn === 'b' ? evals[0].cp : -evals[0].cp,
+  });
+
+  const known = Math.min(moves.length, evals.length - 1);
+  for (let i = 0; i < known; i++) {
+    const mover: Color = posAt.turn;
+    const evalBeforeCp = evals[i].cp;
+    const evalAfterFromNextMoverCp = evals[i + 1].cp;
+    const evalAfterCp = -evalAfterFromNextMoverCp; // back to `mover`'s perspective
+    const loss = Math.max(0, evalBeforeCp - evalAfterCp);
+    const winBefore = cpToWinPercent(evalBeforeCp);
+    const winAfter = cpToWinPercent(evalAfterCp);
+    const winDrop = Math.max(0, winBefore - winAfter);
+    const moveUsi = moves[i];
+
+    plies.push({
+      ply: i + 1,
+      moveUsi,
+      color: mover,
+      sfenBefore: sfens[i],
+      sfenAfter: sfens[i + 1],
+      evalBeforeCp,
+      evalAfterCp,
+      bestMove: evals[i].bestMove,
+      bestMovePv: evals[i].pv,
+      refutationPv: evals[i + 1].pv,
+      centipawnLoss: loss,
+      quality: classifyLoss(winDrop),
+      mateBefore: evals[i].mate,
+      // Le moteur parle du point de vue du joueur au trait, qui est l'adversaire
+      // après le coup : on inverse pour rester du côté de celui qui a joué.
+      mateAfter: evals[i + 1].mate === null ? null : -evals[i + 1].mate!,
+    });
+
+    posAt.applyUsiMove(moveUsi);
+    evalCurve.push({
+      ply: i + 1,
+      cpForBlack: mover === 'b' ? evalAfterCp : -evalAfterCp,
+    });
+  }
+  return { plies, evalCurve };
 }
 
 export async function analyzeGame(
@@ -142,55 +218,10 @@ export async function analyzeGame(
       pv: result.pv,
     });
     opts.onProgress?.('scan', i + 1, total);
+    opts.onPartial?.(buildPlies(startSfen, sfens, moves, evals));
   }
 
-  const plies: PlyEval[] = [];
-  const evalCurve: EvalPoint[] = [];
-  const posAt = Position.fromSfen(startSfen);
-  evalCurve.push({
-    ply: 0,
-    cpForBlack: posAt.turn === 'b' ? evals[0].cp : -evals[0].cp,
-  });
-
-  for (let i = 0; i < moves.length; i++) {
-    const mover: Color = posAt.turn;
-    const evalBeforeCp = evals[i].cp;
-    const evalAfterFromNextMoverCp = evals[i + 1].cp;
-    const evalAfterCp = -evalAfterFromNextMoverCp; // back to `mover`'s perspective
-    const loss = Math.max(0, evalBeforeCp - evalAfterCp);
-    const winBefore = cpToWinPercent(evalBeforeCp);
-    const winAfter = cpToWinPercent(evalAfterCp);
-    const winDrop = Math.max(0, winBefore - winAfter);
-
-    const sfenBefore = sfens[i];
-    const sfenAfter = sfens[i + 1];
-    const moveUsi = moves[i];
-
-    plies.push({
-      ply: i + 1,
-      moveUsi,
-      color: mover,
-      sfenBefore,
-      sfenAfter,
-      evalBeforeCp,
-      evalAfterCp,
-      bestMove: evals[i].bestMove,
-      bestMovePv: evals[i].pv,
-      refutationPv: evals[i + 1].pv,
-      centipawnLoss: loss,
-      quality: classifyLoss(winDrop),
-      mateBefore: evals[i].mate,
-      // Le moteur parle du point de vue du joueur au trait, qui est l'adversaire
-      // après le coup : on inverse pour rester du côté de celui qui a joué.
-      mateAfter: evals[i + 1].mate === null ? null : -evals[i + 1].mate!,
-    });
-
-    posAt.applyUsiMove(moveUsi);
-    evalCurve.push({
-      ply: i + 1,
-      cpForBlack: mover === 'b' ? evalAfterCp : -evalAfterCp,
-    });
-  }
+  const { plies, evalCurve } = buildPlies(startSfen, sfens, moves, evals);
 
   /*
    * Il y avait ici une seconde passe, qui reprenait les coups suspects à une

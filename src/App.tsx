@@ -21,6 +21,7 @@ import {
 import type { HistoryEntry } from './storage/history';
 import { UsiEngine, engineEnvironment } from './engine/UsiEngine';
 import { analyzeGame, deepenPly, deepenTsume } from './analysis/analyze';
+import type { PartialAnalysis } from './analysis/analyze';
 import type { AnalysisPhase, AnalysisResult } from './analysis/analyze';
 import { QUALITY_LABEL_FR } from './analysis/classify';
 import { parseKifu } from './shogi/parser';
@@ -119,11 +120,15 @@ export default function App() {
 
   useWakeLock();
 
-  // Nouvelle analyse (ou partie rechargée depuis l'historique) : la courbe
-  // redevient un spoiler tant qu'on ne l'a pas révélée pour cette partie-là.
-  useEffect(() => {
-    setGraphRevealed(false);
-  }, [result]);
+  /*
+   * Analyse en cours de route : la partie est consultable dès qu'elle est lue,
+   * et son analyse s'y ajoute coup après coup. Les onglets qui ont besoin du
+   * résultat complet attendent la fin.
+   */
+  const analyzing = phase.kind === 'analyzing';
+  const showAnalysis = (phase.kind === 'done' || analyzing) && result !== null && game !== null;
+  /** Interrompt l'analyse en cours, si elle en est une. */
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     applyTheme(theme);
@@ -208,20 +213,45 @@ export default function App() {
     return list;
   }, [game]);
 
+  /** Résultat provisoire : ce qu'on sait déjà, sans tsume ni liste de gaffes encore. */
+  const partialResult = useCallback(
+    (parsed: ParsedGame, partial: PartialAnalysis): AnalysisResult => ({
+      startSfen: parsed.startSfen,
+      plies: partial.plies,
+      evalCurve: partial.evalCurve,
+      blunders: partial.plies.filter((p) => p.quality === 'blunder'),
+      mistakes: partial.plies.filter((p) => p.quality === 'mistake'),
+      tsumes: [],
+    }),
+    [],
+  );
+
   /** Analyse une partie déjà lue — le kifu n'a rien à voir avec l'affaire ici. */
   const analyseParsedGame = useCallback(
     async (parsed: ParsedGame) => {
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+
       setError(null);
       setGame(parsed);
       setCurrentPly(0);
       setVariation(null);
+      setTab('analysis');
+      setGraphRevealed(false);
+      setAskFocus(false);
+      // La partie est affichée tout de suite, sans évaluation : elle se remplit
+      // à mesure que le moteur avance.
+      setResult(partialResult(parsed, { plies: [], evalCurve: [] }));
       setPhase({ kind: 'analyzing', step: 'scan', done: 0, total: parsed.moves.length + 1 });
 
       try {
         const engine = await ensureEngine();
         const res = await analyzeGame(engine, parsed.startSfen, parsed.moves, {
           movetimeMs,
+          signal: controller.signal,
           onProgress: (step, done, total) => setPhase({ kind: 'analyzing', step, done, total }),
+          onPartial: (partial) => setResult(partialResult(parsed, partial)),
         });
         setResult(res);
         setPhase({ kind: 'done' });
@@ -232,11 +262,14 @@ export default function App() {
         setHistory(listHistory());
         setHistoryNote(saved.reason ?? null);
       } catch (e) {
+        // Annulée par « Nouvelle partie » ou par une nouvelle analyse : celles-ci
+        // ont déjà remis l'écran dans l'état voulu.
+        if ((e as Error).name === 'AbortError') return;
         setError(`Analyse interrompue : ${(e as Error).message}`);
         setPhase({ kind: 'input' });
       }
     },
-    [movetimeMs, ensureEngine],
+    [movetimeMs, ensureEngine, partialResult],
   );
 
   const runAnalysis = useCallback(async () => {
@@ -276,8 +309,10 @@ export default function App() {
       setHistory(listHistory());
       return;
     }
+    abortRef.current?.abort();
     setError(null);
     setHistoryNote(null);
+    setGraphRevealed(false);
     setGame(loaded.game);
     setResult(loaded.result);
     setMovetimeMs(loaded.movetimeMs);
@@ -491,10 +526,10 @@ export default function App() {
       className={`app${
         /* La barre de navigation flottante sort du flux et se poserait sur le
            pied de page : seul l'onglet qui la porte réserve la place. */
-        phase.kind === 'done' && result && game && tab !== 'tsume' ? ' app-navbar' : ''
+        showAnalysis && tab !== 'tsume' ? ' app-navbar' : ''
       }`}
     >
-      <header className={`app-header${phase.kind === 'done' ? ' compact' : ''}`}>
+      <header className={`app-header${showAnalysis ? ' compact' : ''}`}>
         <div className="app-title">
           <h1>将棋 — Analyseur de parties</h1>
           <p className="app-tagline">
@@ -540,7 +575,7 @@ export default function App() {
               </select>
             </label>
 
-            {phase.kind === 'done' && game && (
+            {showAnalysis && game && (
               <>
                 <label className="focus-control">
                   Suivre
@@ -572,11 +607,12 @@ export default function App() {
                   positions={game.moves.length + 1}
                 />
                 <button className="btn btn-primary" onClick={reanalyse}>
-                  ↻ Réanalyser
+                  {analyzing ? '↻ Recommencer l’analyse' : '↻ Réanalyser'}
                 </button>
                 <button
                   className="btn btn-ghost options-danger"
                   onClick={() => {
+                    abortRef.current?.abort();
                     closeOptions();
                     setPhase({ kind: 'input' });
                     setResult(null);
@@ -609,7 +645,7 @@ export default function App() {
 
       {error && <div className="banner banner-error">{error}</div>}
 
-      {phase.kind !== 'done' && (
+      {!showAnalysis && (
         <KifuInput
           value={kifuText}
           onChange={setKifuText}
@@ -638,22 +674,22 @@ export default function App() {
 
       {historyNote && <div className="banner banner-warn">{historyNote}</div>}
 
-      {phase.kind === 'analyzing' && (
-        <div className="progress">
-          <div className="progress-bar">
-            <div
-              className={`progress-fill${phase.step === 'tsume' ? ' refine' : ''}`}
-              style={{ width: `${Math.round((phase.done / phase.total) * 100)}%` }}
-            />
-          </div>
-          <span>
-            {PHASE_LABEL[phase.step]} — {phase.done} / {phase.total} positions
-          </span>
-        </div>
-      )}
-
-      {phase.kind === 'done' && result && game && (
+      {showAnalysis && result && game && (
         <>
+          {phase.kind === 'analyzing' && (
+            <div className="progress" role="status">
+              <div className="progress-bar">
+                <div
+                  className={`progress-fill${phase.step === 'tsume' ? ' refine' : ''}`}
+                  style={{ width: `${Math.round((phase.done / phase.total) * 100)}%` }}
+                />
+              </div>
+              <span>
+                {PHASE_LABEL[phase.step]} — {phase.done} / {phase.total} positions. La partie reste
+                consultable ; l'entraînement, les tsume et l'étude s'ouvriront à la fin.
+              </span>
+            </div>
+          )}
           <div className="toolbar">
             <div className="tabs">
               <button
@@ -673,18 +709,21 @@ export default function App() {
               <button
                 className={`tab${tab === 'training' ? ' active' : ''}`}
                 onClick={() => setTab('training')}
+                disabled={analyzing}
               >
-                Entraînement ({focusedMistakes.length})
+                Entraînement{analyzing ? '' : ` (${focusedMistakes.length})`}
               </button>
               <button
                 className={`tab${tab === 'tsume' ? ' active' : ''}`}
                 onClick={() => setTab('tsume')}
+                disabled={analyzing}
               >
-                Tsume ({focusedTsumes.length})
+                Tsume{analyzing ? '' : ` (${focusedTsumes.length})`}
               </button>
               <button
                 className={`tab${tab === 'study' ? ' active' : ''}`}
                 onClick={() => setTab('study')}
+                disabled={analyzing}
               >
                 Étude
               </button>
@@ -711,6 +750,7 @@ export default function App() {
                     moveLabels={moveLabels}
                     currentPly={currentPly}
                     onSelectPly={selectPly}
+                    totalPoints={game.moves.length + 1}
                     spoiler={{ revealed: graphRevealed, onReveal: () => setGraphRevealed(true) }}
                     navControls={
                       /*
@@ -896,6 +936,7 @@ export default function App() {
                     <MoveList
                       plies={result.plies}
                       moveLabels={moveLabels}
+                      firstMover={positions[0]?.turn}
                       currentPly={currentPly}
                       onSelectPly={selectPly}
                       focusSide={focusSide}

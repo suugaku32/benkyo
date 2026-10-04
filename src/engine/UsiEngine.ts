@@ -123,6 +123,13 @@ export class UsiEngine {
   private module: EmscriptenEngineModule | null = null;
   private listeners: Set<(line: string) => void> = new Set();
   readonly ready: Promise<void>;
+  /**
+   * Fin de la dernière recherche demandée. Le moteur n'a qu'un seul état de
+   * position : deux `analyze` entrelacés se volent mutuellement le `bestmove`.
+   * Les mettre en file permet à l'analyse de la partie de tourner en tâche de
+   * fond pendant qu'on explore — l'exploration passe entre deux positions.
+   */
+  private queue: Promise<unknown> = Promise.resolve();
 
   constructor() {
     this.ready = this.init();
@@ -187,7 +194,17 @@ export class UsiEngine {
     });
   }
 
-  async analyze(sfen: string, moves: string[], opts: AnalyzeOptions = {}): Promise<AnalyzeResult> {
+  analyze(sfen: string, moves: string[], opts: AnalyzeOptions = {}): Promise<AnalyzeResult> {
+    const run = this.queue.then(() => this.analyzeNow(sfen, moves, opts));
+    this.queue = run.catch(() => undefined);
+    return run;
+  }
+
+  private async analyzeNow(
+    sfen: string,
+    moves: string[],
+    opts: AnalyzeOptions,
+  ): Promise<AnalyzeResult> {
     await this.ready;
     const posCmd = moves.length
       ? `position sfen ${sfen} moves ${moves.join(' ')}`

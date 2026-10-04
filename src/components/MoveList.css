@@ -72,3 +72,9 @@
 .move-row.dimmed {
   opacity: 0.42;
 }
+
+/* Coup pas encore analysé : le score viendra, la ligne est déjà là. */
+.move-pending {
+  color: var(--dim);
+  opacity: 0.6;
+}

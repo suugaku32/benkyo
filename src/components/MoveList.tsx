@@ -3,8 +3,12 @@ import { QUALITY_COLOR, QUALITY_LABEL_FR } from '../analysis/classify';
 import './MoveList.css';
 
 interface MoveListProps {
+  /** Les coups déjà classés : le début de la partie tant que l'analyse se poursuit. */
   plies: PlyEval[];
+  /** Un libellé par coup de la partie, analysé ou non. */
   moveLabels: string[];
+  /** Camp qui joue le premier coup — celui des coups pas encore analysés s'en déduit. */
+  firstMover?: 'b' | 'w';
   currentPly: number;
   onSelectPly: (ply: number) => void;
   /** Estompe les coups de l'autre camp sans les retirer, pour garder le fil de la partie. */
@@ -16,6 +20,7 @@ const SHOWN_QUALITIES = new Set(['inaccuracy', 'mistake', 'blunder']);
 export function MoveList({
   plies,
   moveLabels,
+  firstMover = 'b',
   currentPly,
   onSelectPly,
   focusSide = 'both',
@@ -28,31 +33,45 @@ export function MoveList({
       >
         Position de départ
       </li>
-      {plies.map((p) => (
-        <li
-          key={p.ply}
-          className={`move-row${currentPly === p.ply ? ' active' : ''}${
-            focusSide !== 'both' && p.color !== focusSide ? ' dimmed' : ''
-          }`}
-          onClick={() => onSelectPly(p.ply)}
-        >
-          <span className="move-num">{p.ply}.</span>
-          <span className="move-side">{p.color === 'b' ? '▲' : '△'}</span>
-          <span className="move-text">{moveLabels[p.ply - 1]}</span>
-          <span className="move-score">{formatSigned(p.evalAfterCp, p.color)}</span>
-          {SHOWN_QUALITIES.has(p.quality) && (
-            <span className="move-quality" style={{ color: QUALITY_COLOR[p.quality] }}>
-              {QUALITY_LABEL_FR[p.quality]}
-              {p.refined && (
-                <span className="move-refined" title="Réexaminé en profondeur">
-                  {' '}
-                  ✓
-                </span>
-              )}
-            </span>
-          )}
-        </li>
-      ))}
+      {moveLabels.map((label, i) => {
+        const ply = i + 1;
+        const p = plies[i];
+        // Les camps alternent : inutile d'attendre l'analyse pour mettre ▲ ou △.
+        const color = p?.color ?? (i % 2 === 0 ? firstMover : firstMover === 'b' ? 'w' : 'b');
+        return (
+          <li
+            key={ply}
+            className={`move-row${currentPly === ply ? ' active' : ''}${
+              focusSide !== 'both' && color !== focusSide ? ' dimmed' : ''
+            }`}
+            onClick={() => onSelectPly(ply)}
+          >
+            <span className="move-num">{ply}.</span>
+            <span className="move-side">{color === 'b' ? '▲' : '△'}</span>
+            <span className="move-text">{label}</span>
+            {p ? (
+              <>
+                <span className="move-score">{formatSigned(p.evalAfterCp, p.color)}</span>
+                {SHOWN_QUALITIES.has(p.quality) && (
+                  <span className="move-quality" style={{ color: QUALITY_COLOR[p.quality] }}>
+                    {QUALITY_LABEL_FR[p.quality]}
+                    {p.refined && (
+                      <span className="move-refined" title="Réexaminé en profondeur">
+                        {' '}
+                        ✓
+                      </span>
+                    )}
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className="move-score move-pending" title="Analyse en cours">
+                …
+              </span>
+            )}
+          </li>
+        );
+      })}
     </ol>
   );
 }
