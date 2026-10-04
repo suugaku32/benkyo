@@ -21,6 +21,8 @@ export interface PlyEval {
   refutationPv: string[];
   centipawnLoss: number;
   quality: MoveQuality;
+  /** True once the second pass has re-examined this ply at the deeper time control. */
+  refined?: boolean;
   /**
    * Mat forcé disponible avant ce coup, du point de vue du joueur au trait :
    * positif = il mate en N, négatif = il se fait mater en N. `null` = pas de mat vu.
@@ -36,16 +38,20 @@ export interface PlyEval {
  * Détecté via le `score mate` de la recherche normale : ce build du moteur
  * n'expose pas `go mate` (la commande y tombe dans une recherche *sans limite
  * de temps*, vérifié). Un score de mat est une ligne prouvée par la recherche,
- * donc les faux positifs sont exclus ; en revanche une analyse trop courte
- * rate les mats profonds ou en rend une séquence tronquée — pour une lecture
- * plus sûre, augmenter le temps d'analyse réglé à la saisie du kifu.
+ * donc les faux positifs sont exclus ; en revanche un balayage court rate les
+ * mats profonds, d'où la troisième passe qui reprend ces positions plus
+ * longtemps.
  */
 export interface Tsume {
   /** Coup de la partie où l'occasion s'est présentée (1-indexé). */
   ply: number;
   color: Color;
   sfen: string;
-  /** Nombre de demi-coups jusqu'au mat, tel que vu par le moteur. */
+  /**
+   * Longueur du mat, telle que le moteur l'annonce : en coups, les deux camps
+   * confondus, donc impaire. C'est le « mat en N » des recueils de tsume, et le
+   * nombre affiché tel quel dans l'interface.
+   */
   mateIn: number;
   /** La séquence de mat : c'est la solution. */
   solution: string[];
@@ -53,6 +59,8 @@ export interface Tsume {
   playedUsi: string;
   /** Vrai si le coup joué à `ply` conservait le mat forcé. */
   found: boolean;
+  /** Vrai si la position a été revue à la cadence longue. */
+  refined: boolean;
   /**
    * Positions supplémentaires absorbées : un mat forcé reste disponible tant
    * qu'on le porte, donc la même occasion réapparaît à chaque coup suivant. Les
@@ -86,10 +94,10 @@ export interface AnalysisResult {
   tsumes: Tsume[];
 }
 
-export type AnalysisPhase = 'scan';
+export type AnalysisPhase = 'scan' | 'tsume';
 
 export interface AnalyzeGameOptions {
-  /** Time per position, pour toute la partie. */
+  /** Time per position for the first pass, which sweeps the whole game. */
   movetimeMs?: number;
   depth?: number;
   onProgress?: (phase: AnalysisPhase, done: number, total: number) => void;
@@ -184,9 +192,78 @@ export async function analyzeGame(
     });
   }
 
+  /*
+   * Il y avait ici une seconde passe, qui reprenait les coups suspects à une
+   * cadence longue. Elle a été retirée : mesurée sur une partie de 80 coups,
+   * elle rouvrait 44 positions — plus de la moitié — parce qu'un balayage,
+   * quelle que soit sa durée, signale toujours autant de coups (43 à 200 ms,
+   * 46 à 2 s). Son coût était donc structurel, pas réglable.
+   *
+   * Ce qu'elle apportait est mieux servi autrement : un balayage plus long
+   * pour la justesse d'ensemble, et l'approfondissement à la demande pour la
+   * position qu'on regarde vraiment. Deviner à l'avance où mettre le temps
+   * était le mauvais pari.
+   */
+  const deep = new Map<number, PositionEval>();
+
+  /*
+   * Pass 3 — les positions où un mat forcé a été aperçu méritent une vraie
+   * séquence de solution : le balayage donne le verdict « il y a un mat » mais
+   * souvent une variante tronquée. On reprend donc ces positions à la cadence
+   * la plus longue disponible, en sautant celles que la passe 2 a déjà traitées.
+   *
+   * Cette passe était gardée par la même condition que la passe 2,
+   * `deepMs > movetimeMs`. Conséquence : régler le balayage aussi haut que
+   * l'étude des gaffes désactivait les deux, et les tsume perdaient leur
+   * séquence sans que rien ne le dise. Les deux passes ne répondent pourtant
+   * pas à la même question — l'une réexamine un verdict douteux, l'autre
+   * complète une solution — et n'ont aucune raison de partager un interrupteur.
+   *
+   * Elle ne concerne qu'une poignée de positions : la garder allumée coûte
+   * quelques secondes, la perdre coûte l'onglet Tsume.
+   */
+  const tsumeMs = opts.movetimeMs ?? 0;
+  if (tsumeMs > 0) {
+    const toDeepen = plies
+      .filter((p) => p.mateBefore !== null && p.mateBefore > 0)
+      .map((p) => p.ply - 1)
+      .filter((i) => !deep.has(i));
+    const unique = [...new Set(toDeepen)];
+
+    for (let k = 0; k < unique.length; k++) {
+      if (opts.signal?.aborted) throw new DOMException('Analyse annulée', 'AbortError');
+      const i = unique[k];
+      const r = await engine.analyze(sfens[i], [], { movetimeMs: tsumeMs });
+      deep.set(i, {
+        cp: scoreToCp(r.scoreCp, r.scoreMate),
+        mate: r.scoreMate,
+        bestMove: r.bestMove,
+        pv: r.pv,
+      });
+      opts.onProgress?.('tsume', k + 1, unique.length);
+    }
+
+    for (const p of plies) {
+      const d = deep.get(p.ply - 1);
+      if (!d || p.mateBefore === null || p.mateBefore <= 0) continue;
+      // Un mat vu à 200 ms est une ligne prouvée : il ne disparaît pas en
+      // cherchant plus longtemps. Si la passe longue rend malgré tout un score
+      // en centipions (itération interrompue), on garde la détection initiale
+      // plutôt que de perdre le tsume.
+      if (d.mate !== null && d.mate > 0) {
+        p.mateBefore = d.mate;
+        p.bestMove = d.bestMove;
+        p.bestMovePv = d.pv;
+      }
+    }
+  }
+
   const blunders = plies.filter((p) => p.quality === 'blunder');
   const mistakes = plies.filter((p) => p.quality === 'mistake');
-  const tsumes = collectTsumes(plies);
+  const tsumes = collectTsumes(
+    plies,
+    new Set([...deep.keys()].map((i) => i + 1)),
+  );
 
   return { startSfen, plies, evalCurve, blunders, mistakes, tsumes };
 }
@@ -199,7 +276,7 @@ export async function analyzeGame(
  * après le coup joué, l'adversaire est-il *encore* en train de se faire mater ?
  * Peu importe que le joueur ait choisi le mat le plus court.
  */
-export function collectTsumes(plies: PlyEval[]): Tsume[] {
+export function collectTsumes(plies: PlyEval[], refinedPlies?: Set<number>): Tsume[] {
   const out: Tsume[] = [];
   /** Dernier tsume retenu pour chaque camp, avec le coup où on l'a laissé. */
   const chain = new Map<Color, { entry: Tsume; ply: number }>();
@@ -235,6 +312,7 @@ export function collectTsumes(plies: PlyEval[]): Tsume[] {
       solution: p.bestMovePv,
       playedUsi: p.moveUsi,
       found: kept,
+      refined: refinedPlies ? refinedPlies.has(p.ply) : (p.refined ?? false),
       repeats: 0,
       lastPly: p.ply,
       delivered: mated,
@@ -276,6 +354,30 @@ function deliveredMate(sfenAfter: string): boolean {
  * La variante peut être tronquée par la recherche ; on vérifie alors ce qui est
  * disponible, ce qui suffit à écarter les cas manifestes.
  */
+/**
+ * Rang du premier coup de l'attaquant qui ne donne pas échec, ou `-1` si la
+ * séquence est bien une suite d'échecs. Compté en coups, comme le reste : le
+ * premier coup est le n° 1.
+ *
+ * `isCheckingSequence` ne peut se prononcer que sur ce qu'elle voit. Une
+ * variante tronquée par la recherche cache sa queue, et un coup tranquille
+ * peut s'y trouver : l'exercice est alors un mat forcé, mais pas un tsume. Le
+ * dire vaut mieux que le taire — c'est une différence que le joueur ressent
+ * immédiatement, puisqu'il cherche un échec qui n'existe pas.
+ */
+export function firstQuietAttackerMove(sfen: string, solution: string[]): number {
+  try {
+    const pos = Position.fromSfen(sfen);
+    for (let i = 0; i < solution.length; i++) {
+      pos.applyUsiMove(solution[i]);
+      if (i % 2 === 0 && !isKingCapturable(pos, pos.turn)) return i + 1;
+    }
+  } catch {
+    // Séquence invalide : rien à signaler ici, l'affichage s'en chargera.
+  }
+  return -1;
+}
+
 function isCheckingSequence(sfen: string, solution: string[]): boolean {
   if (solution.length === 0) return false;
   try {
@@ -289,4 +391,54 @@ function isCheckingSequence(sfen: string, solution: string[]): boolean {
   } catch {
     return false;
   }
+}
+
+/*
+ * Approfondissement à la demande, sur une seule position.
+ *
+ * C'est la contrepartie d'une passe unique : plutôt que de deviner à l'avance
+ * quelles positions méritent du temps, on en donne à celle qu'on regarde. Deux
+ * recherches suffisent — avant et après le coup joué.
+ *
+ * `quality` est délibérément conservée. La recalculer ferait sortir l'exercice
+ * de la liste sous les yeux de qui vient de demander à l'examiner de plus près,
+ * ce qui est la dernière chose à faire. Reclasser toute la partie, c'est le rôle
+ * de « Réanalyser ».
+ */
+export async function deepenPly(
+  engine: UsiEngine,
+  p: PlyEval,
+  movetimeMs: number,
+): Promise<PlyEval> {
+  const before = await engine.analyze(p.sfenBefore, [], { movetimeMs });
+  const after = await engine.analyze(p.sfenAfter, [], { movetimeMs });
+  const evalBeforeCp = scoreToCp(before.scoreCp, before.scoreMate);
+  const evalAfterCp = -scoreToCp(after.scoreCp, after.scoreMate);
+  return {
+    ...p,
+    evalBeforeCp,
+    evalAfterCp,
+    bestMove: before.bestMove,
+    bestMovePv: before.pv,
+    refutationPv: after.pv,
+    mateBefore: before.scoreMate,
+    mateAfter: after.scoreMate === null ? null : -after.scoreMate,
+    centipawnLoss: Math.max(0, evalBeforeCp - evalAfterCp),
+    refined: true,
+  };
+}
+
+/**
+ * Idem pour un tsume : une seule recherche, sur la position de l'exercice, dont
+ * on retient la longueur annoncée et la séquence. Une recherche plus longue
+ * publie une variante moins souvent tronquée — c'est tout l'intérêt ici.
+ */
+export async function deepenTsume(
+  engine: UsiEngine,
+  t: Tsume,
+  movetimeMs: number,
+): Promise<Tsume> {
+  const r = await engine.analyze(t.sfen, [], { movetimeMs });
+  if (r.scoreMate === null || r.scoreMate <= 0) return { ...t, refined: true };
+  return { ...t, mateIn: r.scoreMate, solution: r.pv, refined: true };
 }

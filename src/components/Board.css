@@ -5,6 +5,79 @@
   align-items: center;
 }
 
+/* Sur large écran : la colonne des noms à côté du plateau plutôt qu'un ruban
+   au-dessus et en dessous de lui. Voir `Board.tsx`, la mesure qui décide.
+   Pleine largeur, pour que la colonne des noms reste bord à bord avec le bord
+   gauche de la courbe au-dessus (voir `.analysis-main` dans `App.css`) plutôt
+   que de suivre le plateau, lui, plus étroit. */
+.board-main {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+  width: 100%;
+}
+
+.board-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+}
+
+/* `flex: 1` : une fois la colonne des noms fixée à gauche par `.board-main`,
+   le goban se centre dans ce qui reste plutôt que dans la largeur entière —
+   à sa taille maximale il déborderait sur la colonne des noms si on le
+   centrait sous la courbe entière. Ne vise que le mode large : en ruban
+   (mobile), `.board-stack` est l'unique enfant de `.board-wrap` et n'a pas
+   besoin de céder de la place à une colonne de noms voisine. */
+.board-main > .board-stack {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/*
+ * Un nom en haut, un en bas. `justify-content: space-between` étire la
+ * colonne à la hauteur de `.board-stack` — qui, en mode large, ne contient
+ * plus que le plateau lui-même (voir `Board.tsx`) — donc chaque nom vient
+ * border exactement le haut et le bas du goban, sans rien d'autre entre les
+ * deux pour les en écarter.
+ */
+.names-col {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 108px;
+  flex-shrink: 0;
+  padding: 2px 0;
+}
+
+.name-label {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+  overflow: hidden;
+}
+
+/* Les pièces prises de ce camp, sous son nom — un peu d'air, pas une rangée
+   qui les collerait au texte. */
+.name-label .hpieces {
+  margin-top: 4px;
+}
+
+.name-label-side {
+  font-size: 11px;
+  color: var(--dim);
+}
+
+.name-label-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .board-frame {
   display: flex;
   flex-direction: column;
@@ -71,18 +144,21 @@
   opacity: 0.9;
 }
 
-/* Le kanji occupe le centre du cercle, sur une case forcément vide. Un liseré
-   fin suffit à le décoller des lignes du plateau qui passent dessous. */
+/* Le kanji du parachutage tombe souvent sur une case occupée. Il est peint
+   par-dessus son propre contour, dans la couleur du fond : un liseré le
+   détache de la pièce en dessous sans avoir à masquer quoi que ce soit. */
+/* Le kanji occupe le centre du cercle, sur une case vide. Un liseré fin suffit
+   à le décoller des lignes du plateau qui passent dessous. */
 .arrow-drop-piece {
-  font-family: 'Hiragino Mincho ProN', 'Noto Serif JP', serif;
+  font-family: var(--piece-font);
   font-weight: 700;
   stroke-width: 2;
   paint-order: stroke fill;
 }
 
 /* Le contour est repris dans les deux sélecteurs composés : `.arrow-best`
-   imposerait sinon sa propre couleur de trait, à égalité de spécificité et
-   plus bas dans le fichier. */
+   impose sinon sa propre couleur de trait, à égalité de spécificité et plus
+   bas dans le fichier. */
 .arrow-drop-piece.arrow-best {
   fill: var(--status-good);
   stroke: var(--bg);
@@ -159,7 +235,7 @@
   text-shadow: var(--glow-normal);
   line-height: 1;
   font-weight: 700;
-  font-family: 'Hiragino Mincho ProN', 'Noto Serif JP', serif;
+  font-family: var(--piece-font);
   user-select: none;
 }
 
@@ -170,6 +246,55 @@
 .pc.gote {
   display: inline-block;
   transform: rotate(180deg);
+}
+
+/*
+ * La pièce entre depuis sa case de départ : on part du décalage inverse pour
+ * revenir à zéro, ce qui évite d'avoir un élément volant en plus.
+ *
+ * `inline-block` est indispensable — `transform` ne s'applique pas à une boîte
+ * en ligne, et `.pc` l'est par défaut ; seule la variante gote le posait.
+ *
+ * Deux jeux d'images clés plutôt qu'un : les pièces adverses portent déjà un
+ * `rotate(180deg)`, qu'une animation en `transform` remplacerait purement et
+ * simplement. La rotation est donc reconduite dans les deux extrémités. La
+ * propriété `translate` seule aurait composé d'elle-même, mais elle n'existe
+ * pas sur les iOS 14 que la cible de compilation couvre encore.
+ */
+@keyframes pc-arrive {
+  from {
+    transform: translate(var(--fx), var(--fy));
+  }
+  to {
+    transform: translate(0, 0);
+  }
+}
+
+@keyframes pc-arrive-gote {
+  from {
+    transform: translate(var(--fx), var(--fy)) rotate(180deg);
+  }
+  to {
+    transform: translate(0, 0) rotate(180deg);
+  }
+}
+
+.pc-arriving {
+  display: inline-block;
+  /* Au-dessus des cases voisines : en vol, la pièce les survole. */
+  position: relative;
+  z-index: 2;
+  animation: pc-arrive 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.pc.gote.pc-arriving {
+  animation-name: pc-arrive-gote;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pc-arriving {
+    animation: none;
+  }
 }
 
 .hbox {
@@ -211,12 +336,8 @@
   align-items: center;
 }
 
-.hempty {
-  color: var(--dim);
-  font-size: 12px;
-}
-
 .hp {
+  font-family: var(--piece-font);
   position: relative;
   width: 30px;
   height: 30px;

@@ -20,6 +20,7 @@ interface StoredPly {
   m: string | null; // bestMove
   p: string[]; // bestMovePv
   r: string[]; // refutationPv
+  f?: 1; // refined
   // Mats forcés. Absents des parties enregistrées avant l'ajout du mode tsume :
   // ces entrées se rechargent alors sans tsume plutôt que d'être rejetées.
   mb?: number; // mateBefore
@@ -35,6 +36,7 @@ export interface StoredGame {
   startSfen: string;
   moves: string[];
   movetimeMs: number;
+  deepMovetimeMs: number;
   evalCurve: EvalPoint[];
   plies: StoredPly[];
 }
@@ -111,6 +113,9 @@ export function saveGame(
     startSfen: game.startSfen,
     moves: game.moves,
     movetimeMs,
+    // Conservé à zéro : la seconde passe n'existe plus, mais le champ reste
+    // dans le format pour que les parties déjà enregistrées restent lisibles.
+    deepMovetimeMs: 0,
     evalCurve: result.evalCurve,
     plies: result.plies.map((p) => ({
       b: p.evalBeforeCp,
@@ -120,6 +125,7 @@ export function saveGame(
       m: p.bestMove,
       p: p.bestMovePv,
       r: p.refutationPv,
+      ...(p.refined ? { f: 1 as const } : {}),
       ...(p.mateBefore !== null ? { mb: p.mateBefore } : {}),
       ...(p.mateAfter !== null ? { ma: p.mateAfter } : {}),
     })),
@@ -181,6 +187,7 @@ export function loadGame(
       refutationPv: s.r ?? [],
       centipawnLoss: s.l,
       quality: s.q,
+      refined: s.f === 1,
       mateBefore: s.mb ?? null,
       mateAfter: s.ma ?? null,
     }));

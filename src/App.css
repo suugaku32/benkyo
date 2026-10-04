@@ -1,5 +1,11 @@
+/*
+ * 1 200 px : la courbe plafonne à 760 px, le bilan à sa droite à 380 px (même
+ * largeur que la liste des coups) — au-delà, l'espace gagné n'allait qu'en
+ * marges. La colonne des coups et le plateau, eux, restaient les seuls à en
+ * profiter, et ils ont leur propre plafond plus bas.
+ */
 .app {
-  max-width: 1100px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 20px 16px 40px;
   display: flex;
@@ -80,6 +86,16 @@
   color: var(--accent);
 }
 
+.options-build {
+  color: var(--dim);
+  font-size: 11px;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+  /* Sélectionnable : la première chose qu'on fait avec, c'est la recopier
+     dans un message pour dire quelle version on regarde. */
+  user-select: text;
+}
+
 .banner {
   padding: 10px 14px;
   border-radius: 10px;
@@ -121,7 +137,7 @@
   transition: width 0.2s;
 }
 
-/* Seconde passe : couleur distincte, la barre repart de zéro sur un autre total. */
+/* Passe tsume : couleur distincte, la barre repart de zéro sur un autre total. */
 .progress-fill.refine {
   background: var(--gold);
 }
@@ -159,15 +175,20 @@
   color: var(--text);
 }
 
+/*
+ * Colonne, pas rangée : à côté de la courbe, l'espace disponible est étroit et
+ * vertical (ce que `EvalGraph` laisse libre à sa droite) plutôt que large et
+ * horizontal comme lorsque le bilan occupait sa propre rangée pleine largeur.
+ */
 .summary {
   display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1 1 220px;
+  min-width: 0;
 }
 
 .summary-card {
-  flex: 1;
-  min-width: 240px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -175,26 +196,41 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-width: 0;
+  transition: background 0.15s, border-color 0.15s;
 }
 
+/*
+ * `--surface2` plutôt qu'un aplat de la couleur d'accent : la carte contient
+ * les chiffres imprécision/erreur/gaffe, déjà colorés chacun dans leur
+ * couleur de statut — un fond d'accent plein les aurait rendus illisibles.
+ * C'est le même ton que les onglets actifs (`.tab.active`), pour rester le
+ * langage établi de « ceci est choisi » plutôt que d'en inventer un nouveau.
+ */
+.summary-card.active {
+  background: var(--surface2);
+  border-color: var(--accent);
+}
+
+/*
+ * Un bouton, pas un simple libellé : cliquer le nom du joueur revient à le
+ * choisir dans « Suivre », sans passer par les réglages.
+ */
 .summary-side {
   font-weight: 700;
   font-size: 14px;
-  align-self: flex-start;
   background: none;
   border: none;
   padding: 0;
+  font: inherit;
+  font-weight: 700;
   color: inherit;
-  font-family: inherit;
+  text-align: left;
   cursor: pointer;
   border-radius: 4px;
 }
 
 .summary-side:hover {
-  text-decoration: underline;
-}
-
-.summary-side.active {
   color: var(--accent);
 }
 
@@ -210,28 +246,6 @@
   font-weight: 600;
 }
 
-/* Tant que la courbe n'a pas été révélée, elle reste floutée et hors des
-   interactions (survol, clic) : sinon la crosshair et l'infobulle en dessous
-   trahiraient l'évaluation avant même le clic sur le bouton. */
-.eval-graph-spoiler {
-  position: relative;
-}
-
-.eval-graph-spoiler:not(.revealed) > .eval-graph {
-  filter: blur(14px);
-  pointer-events: none;
-  user-select: none;
-}
-
-.eval-graph-reveal {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  white-space: nowrap;
-  z-index: 1;
-}
-
 .analysis-body {
   display: flex;
   gap: 20px;
@@ -239,8 +253,43 @@
   flex-wrap: wrap;
 }
 
+/*
+ * Le plateau et sa navigation forment un bloc : les flèches ⏮ ‹ › ⏭ sont ce
+ * qu'on touche le plus, elles se tiennent donc juste sous les cases, et non
+ * dans la colonne d'à côté où elles arrivaient après un demi-écran de
+ * défilement sur téléphone.
+ */
+.analysis-main {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
+/*
+ * Sur grand écran, la rangée occupe seule la première ligne du bloc. La courbe
+ * elle-même plafonne à 760 px (voir `EvalGraph.css`) : le bilan par joueur se
+ * loge dans ce qu'elle laisse libre à sa droite plutôt que d'occuper sa propre
+ * rangée pleine largeur au-dessus. Sous 861 px il n'y a plus la place ; la
+ * rangée se replie et le bilan repasse sous la courbe (`flex-wrap`).
+ */
+.analysis-graph-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-start;
+  flex: 1 1 100%;
+  order: -1;
+}
+
+.analysis-graph {
+  flex: 1 1 480px;
+  min-width: 0;
+}
+
 .analysis-side {
-  flex: 1;
+  flex: 1 1 300px;
   min-width: 260px;
   display: flex;
   flex-direction: column;
@@ -248,8 +297,51 @@
 }
 
 /*
- * Sélecteur de panneau « Coups / Explorer » : un seul à la fois, l'onglet
- * actif dit lequel on regarde, comme le reste des onglets de l'application.
+ * Sur bureau, plateau et colonne des coups grandissaient à parts égales : la
+ * moitié de l'écran gagnée sur un large moniteur finissait en marge autour
+ * d'une liste de texte, pendant que le plateau — la seule chose qui bénéficie
+ * vraiment de la place — restait à 534 px. Plafonnée, la colonne des coups
+ * cesse de croître une fois une largeur de lecture confortable atteinte ; le
+ * reste de l'espace gagné va au plateau, seul flexible restant.
+ */
+@media (min-width: 861px) {
+  .analysis-side {
+    max-width: 380px;
+  }
+
+  /* Même largeur que la liste des coups, pour la même raison : au-delà d'une
+     largeur de lecture confortable, l'espace gagné ne sert plus à rien ici —
+     et le laisser filer élargissait la page entière sans nécessité. */
+  .summary {
+    max-width: 380px;
+  }
+
+  /* Même plafond que la courbe (760 px, voir `EvalGraph.css`) : les deux
+     partent du même bord gauche dans `.analysis-body`, donc plafonnés pareil
+     ils gardent aussi le même bord droit — plateau et noms de joueurs restent
+     sous la courbe plutôt que de déborder à sa droite une fois la page large. */
+  .analysis-main {
+    max-width: 760px;
+  }
+}
+
+/*
+ * Au-dessus des onglets « Coups / Explorer » : la flèche verte sert dans les
+ * deux panneaux (la partie suivie comme une variante explorée), pas la peine
+ * de changer d'onglet pour la couper.
+ */
+.arrow-toggles {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 2px 2px 4px;
+}
+
+/*
+ * Sélecteur de panneau « Coups / Explorer », identique à toutes les largeurs.
+ * Un temps, il disparaissait au-dessus de 860 px pour montrer les deux
+ * panneaux empilés — mais alors rien ne les distinguait plus l'un de l'autre,
+ * et l'onglet actif est justement ce qui nomme ce qu'on regarde.
  */
 .analysis-segments {
   display: flex;
@@ -284,18 +376,63 @@
   min-width: 0;
 }
 
+/* Un seul panneau à la fois, à toutes les largeurs : c'est l'onglet actif qui
+   dit lequel on regarde, comme le reste des onglets de l'application. */
 .analysis-panel:not(.active) {
   display: none;
 }
 
-.ply-nav {
-  display: flex;
-  gap: 6px;
+.panel-empty {
+  font-size: 12px;
+  color: var(--dim);
 }
 
-.ply-nav .btn {
-  flex: 1;
-  padding: 8px;
+@media (max-width: 860px) {
+  /* Une seule colonne, et un seul panneau à la fois : ce qui reste à l'écran
+     est ce qu'on a demandé à voir. */
+  .analysis-body {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 10px;
+    /*
+     * `flex-start` sur l'axe transversal laisse chaque colonne prendre la
+     * largeur de son contenu — le plateau se dimensionnait alors sur lui-même
+     * (40 px la case au lieu de 38) et débordait de 12 px, d'où la page qui
+     * glissait latéralement. Étirées, les colonnes reçoivent la largeur
+     * disponible, et le plateau la mesure.
+     */
+    align-items: stretch;
+  }
+
+  .analysis-side {
+    width: 100%;
+  }
+
+  /* Plateau, navigation, puis la courbe (et sous elle, le bilan replié faute
+     de place à côté), puis le panneau choisi. */
+  .analysis-main {
+    order: 1;
+  }
+
+  .analysis-graph-row {
+    order: 2;
+  }
+
+  .analysis-side {
+    order: 3;
+  }
+
+  /* La liste garde son propre défilement, mais s'arrête avant de pousser le
+     reste hors de l'écran. */
+  .move-list {
+    max-height: 46vh;
+  }
+
+  /* Place pour la barre de navigation flottante, qui sort du flux : sans
+     réserve, elle recouvrirait la fin de la liste des coups et le pied de page. */
+  .app.app-navbar {
+    padding-bottom: 88px;
+  }
 }
 
 .app-footer {
@@ -333,6 +470,14 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+  /*
+   * Sans ça, le plateau ne rétrécit jamais. Un élément flex a `min-width: auto`,
+   * c'est-à-dire la largeur de son contenu : la colonne débordait de son parent
+   * au lieu de se laisser contraindre, et le plateau sortait de l'écran sur les
+   * téléphones étroits. Le `min-width: 0` rend la contrainte transmissible, et
+   * c'est ce que le plateau mesure pour dimensionner ses cases.
+   */
+  min-width: 0;
 }
 
 .variation-hint {
@@ -411,14 +556,125 @@
     gap: 6px;
   }
 
+  /*
+   * Deux cartes empilées, chacune sur deux lignes : 120 px avant d'arriver au
+   * plateau pour six nombres. Mises à plat, elles disent la même chose en 60.
+   */
   .summary-card {
     min-width: 0;
     flex-basis: 100%;
-    padding: 7px 10px;
-    gap: 2px;
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 6px 10px;
+    gap: 8px;
+  }
+
+  .summary-side {
+    font-size: 12px;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .summary-stats {
+    font-size: 11px;
+    gap: 8px;
+    flex-wrap: nowrap;
+    flex-shrink: 0;
   }
 
   .app-footer {
     font-size: 10px;
   }
+}
+
+.credits {
+  margin-top: 6px;
+}
+
+.credits summary {
+  cursor: pointer;
+  color: var(--dim);
+}
+
+.credits ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  line-height: 1.5;
+}
+
+.credits a {
+  color: var(--blue);
+}
+
+/* Les noms de paquets sont longs et ne doivent pas élargir la page. */
+.credits code {
+  font-size: 0.95em;
+  overflow-wrap: anywhere;
+}
+
+.credits-licence {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  line-height: 1.5;
+}
+
+/*
+ * Le fond assombri est un élément à part : `<dialog open>` (sans showModal)
+ * n'en pose pas lui-même. Il capte aussi les clics à côté, ce qui évite qu'on
+ * tape sur l'application derrière une question restée sans réponse.
+ */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.focus-dialog {
+  position: static;
+  max-width: 380px;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.focus-dialog h2 {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.focus-dialog p {
+  font-size: 13px;
+  color: var(--dim);
+  line-height: 1.5;
+}
+
+.focus-dialog-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.focus-dialog-choices .btn {
+  width: 100%;
+  /* Les noms de joueurs peuvent être longs ; le bouton s'étire, pas la page. */
+  overflow-wrap: anywhere;
 }

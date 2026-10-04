@@ -1,0 +1,57 @@
+/*
+ * Le curseur et sa valeur forment un seul contrôle ; la durée d'attente est
+ * annoncée à côté, parce qu'elle ne se déduit pas de la valeur choisie.
+ */
+.deepen {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+
+.deepen-time {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--dim);
+  /* Le curseur prend la place restante plutôt que de rester minuscule. */
+  flex: 1;
+  min-width: 160px;
+}
+
+.deepen-label {
+  flex-shrink: 0;
+}
+
+.deepen-time input[type='range'] {
+  flex: 1;
+  min-width: 90px;
+  accent-color: var(--accent);
+}
+
+/* Chiffres tabulaires : sans eux la valeur tremble à chaque dixième et le
+   contrôle entier se décale sous le doigt. */
+.deepen-value {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  min-width: 52px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.deepen-estimate {
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.deepen-done {
+  color: var(--status-good);
+}
+
+/* Au doigt, la poignée d'un curseur natif est trop fine pour être attrapée. */
+@media (pointer: coarse) {
+  .deepen-time input[type='range'] {
+    height: 28px;
+  }
+}

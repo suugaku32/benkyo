@@ -70,32 +70,6 @@
   gap: 8px;
 }
 
-/*
- * Chevrons pour dérouler la meilleure suite coup par coup, sans chasser la
- * barre de variante plus bas. Sur téléphone, le geste qu'on répète le plus
- * quitte le flux et se pose en bas à droite de l'écran, sous le pouce.
- */
-@media (max-width: 860px) {
-  .float-nav {
-    position: fixed;
-    right: 10px;
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
-    z-index: 30;
-    gap: 8px;
-  }
-
-  .float-nav .btn.btn-ghost {
-    width: 56px;
-    height: 52px;
-    padding: 0;
-    font-size: 24px;
-    line-height: 1;
-    border-radius: 16px;
-    background: var(--surface2);
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
-  }
-}
-
 .training-prompt {
   font-size: 14px;
   color: var(--text);
@@ -236,6 +210,20 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+  /* Voir `.analysis-board` : sans `min-width: 0`, un élément flex garde la
+     largeur de son contenu et le plateau déborde des écrans étroits. */
+  min-width: 0;
+  /*
+   * Une largeur de base explicite, pas « auto » : le plateau contient
+   * maintenant lui-même une rangée flexible (la colonne des noms à côté du
+   * goban, voir `Board.css` .board-main), et une colonne sans base propre
+   * mesurant sa propre largeur intrinsèque autour d'un contenu qui dépend de
+   * cette même mesure ne converge pas de façon fiable — elle rétrécissait ici
+   * au lieu de suivre le plafond de 60 px par case. 700 px laisse la place au
+   * plateau le plus large (573 px) et à sa colonne de noms (102 px) avec une
+   * marge.
+   */
+  flex: 0 1 700px;
 }
 
 .training-played {

@@ -1,6 +1,6 @@
 /*
- * Palette reprise de l'app Tsume (suugaku32/tsume) pour que les deux outils
- * forment une famille visuelle. Fond sombre, pièces en kanji avec halo néon.
+ * Palette reprise d'une app sœur pour que les deux outils forment une
+ * famille visuelle. Fond sombre, pièces en kanji avec halo néon.
  */
 :root {
   color-scheme: dark;
@@ -46,6 +46,12 @@
   --sq-hint-inset: inset 0 0 6px rgba(0, 200, 100, 0.35);
   --sq-sel-outline: rgba(0, 255, 120, 0.7);
   --on-accent: #fff;
+  /*
+   * Police des kanji. Aucune n'est téléchargée : la valeur par défaut est un
+   * mincho, le dessin des jeux de shogi traditionnels, avec repli sur la
+   * famille générique quand l'appareil n'a rien de mieux.
+   */
+  --piece-font: 'Hiragino Mincho ProN', 'Yu Mincho', YuMincho, 'Noto Serif JP', 'Songti SC', serif;
   --area-opacity: 0.18;
   --btn-hover: brightness(1.2);
 }
@@ -325,25 +331,133 @@
   --on-accent: #002b36;
 }
 
+/* Tokyo Night — https://github.com/enkia/tokyo-night-vscode-theme
+   Seule palette de la série à passer telle quelle : mesurée sur son fond
+   #1a1b26, la plus faible de ses couleurs de statut (gaffe, #f7768e) est à
+   6,5:1, et le texte secondaire à 7:1. Aucun décalage de luminance nécessaire. */
+:root[data-theme='tokyo-night'] {
+  --bg: #1a1b26;
+  --surface: #1f2335;
+  --surface2: #292e42;
+  --text: #c0caf5;
+  --dim: #9aa5ce;
+  --border: rgba(192, 202, 245, 0.18);
+  --accent: #7aa2f7;
+  --gold: #e0af68;
+  --green: #9ece6a;
+  --blue: #7dcfff;
+  --diverging-pos: #7aa2f7;
+  --diverging-neg: #f7768e;
+  --gridline: rgba(192, 202, 245, 0.1);
+  --baseline: rgba(192, 202, 245, 0.3);
+  --status-blunder: #f7768e;
+  --status-mistake: #ff9e64;
+  --status-inaccuracy: #e0af68;
+  --status-good: #9ece6a;
+  --board-bg: rgba(192, 202, 245, 0.04);
+  --board-line: rgba(192, 202, 245, 0.5);
+  --piece-text: #c0caf5;
+  --piece-promoted: #bb9af7;
+  --on-accent: #1a1b26;
+}
+
 /* Les thèmes classiques partagent l'absence de halo et de lueur interne. */
 :root[data-theme='catppuccin-mocha'],
 :root[data-theme='catppuccin-latte'],
 :root[data-theme='nord'],
 :root[data-theme='dracula'],
 :root[data-theme='gruvbox'],
-:root[data-theme='solarized'] {
+:root[data-theme='solarized'],
+:root[data-theme='tokyo-night'] {
   --glow-normal: none;
   --glow-promoted: none;
   --sq-to-inset: none;
   --sq-from-inset: none;
   --sq-sel-inset: none;
   --sq-hint-inset: none;
-  --sq-to: rgba(255, 196, 0, 0.24);
-  --sq-from: rgba(120, 160, 255, 0.2);
-  --sq-sel: rgba(60, 200, 120, 0.3);
-  --sq-hint: rgba(60, 200, 120, 0.16);
-  --sq-err: rgba(220, 50, 50, 0.5);
-  --sq-sel-outline: rgba(60, 200, 120, 0.8);
+}
+
+/*
+ * Les cases surlignées prennent les couleurs de leur thème. Elles étaient
+ * figées en ambre, bleu et vert génériques, hérités du néon : sur Tokyo Night
+ * la case d'arrivée virait au moutarde, sans rapport avec la palette autour.
+ *
+ * Le doré propre à chaque thème ne suffisait pas non plus — une teinte chaude
+ * à faible opacité sur un fond froid donne un brun terne. C'est le bleu de la
+ * palette qui sert désormais aux deux cases du dernier coup, franc à l'arrivée
+ * et à peine posé au départ : une même teinte en deux intensités se lit comme
+ * une trace, et compose proprement sur des fonds eux-mêmes froids.
+ *
+ * Le bleu plutôt que l'accent : sur la moitié des palettes classiques l'accent
+ * est un rouge presque identique à la couleur « gaffe », qui aurait fait passer
+ * le coup courant pour une erreur.
+ *
+ * Valeurs écrites en rgba() plutôt que dérivées par `color-mix()` : la cible de
+ * compilation couvre encore des Safari qui l'ignorent, et une couleur inconnue
+ * ne surligne rien du tout. Les thèmes clairs demandent plus d'opacité.
+ */
+
+:root[data-theme='catppuccin-mocha'] {
+  --sq-to: rgba(137, 180, 250, 0.3);
+  --sq-from: rgba(137, 180, 250, 0.13);
+  --sq-sel: rgba(166, 227, 161, 0.3);
+  --sq-hint: rgba(166, 227, 161, 0.16);
+  --sq-err: rgba(243, 139, 168, 0.5);
+  --sq-sel-outline: rgba(166, 227, 161, 0.8);
+}
+
+:root[data-theme='catppuccin-latte'] {
+  --sq-to: rgba(30, 102, 245, 0.34);
+  --sq-from: rgba(30, 102, 245, 0.16);
+  --sq-sel: rgba(49, 122, 33, 0.32);
+  --sq-hint: rgba(49, 122, 33, 0.18);
+  --sq-err: rgba(210, 15, 57, 0.45);
+  --sq-sel-outline: rgba(49, 122, 33, 0.85);
+}
+
+:root[data-theme='nord'] {
+  --sq-to: rgba(136, 192, 208, 0.3);
+  --sq-from: rgba(136, 192, 208, 0.13);
+  --sq-sel: rgba(163, 190, 140, 0.3);
+  --sq-hint: rgba(163, 190, 140, 0.16);
+  --sq-err: rgba(209, 142, 148, 0.5);
+  --sq-sel-outline: rgba(163, 190, 140, 0.8);
+}
+
+:root[data-theme='dracula'] {
+  --sq-to: rgba(139, 233, 253, 0.3);
+  --sq-from: rgba(139, 233, 253, 0.13);
+  --sq-sel: rgba(80, 250, 123, 0.3);
+  --sq-hint: rgba(80, 250, 123, 0.16);
+  --sq-err: rgba(255, 85, 85, 0.5);
+  --sq-sel-outline: rgba(80, 250, 123, 0.8);
+}
+
+:root[data-theme='gruvbox'] {
+  --sq-to: rgba(131, 165, 152, 0.3);
+  --sq-from: rgba(131, 165, 152, 0.13);
+  --sq-sel: rgba(184, 187, 38, 0.3);
+  --sq-hint: rgba(184, 187, 38, 0.16);
+  --sq-err: rgba(251, 89, 70, 0.5);
+  --sq-sel-outline: rgba(184, 187, 38, 0.8);
+}
+
+:root[data-theme='solarized'] {
+  --sq-to: rgba(38, 139, 210, 0.4);
+  --sq-from: rgba(38, 139, 210, 0.19);
+  --sq-sel: rgba(133, 153, 0, 0.3);
+  --sq-hint: rgba(133, 153, 0, 0.16);
+  --sq-err: rgba(229, 104, 102, 0.5);
+  --sq-sel-outline: rgba(133, 153, 0, 0.8);
+}
+
+:root[data-theme='tokyo-night'] {
+  --sq-to: rgba(125, 207, 255, 0.3);
+  --sq-from: rgba(125, 207, 255, 0.13);
+  --sq-sel: rgba(158, 206, 106, 0.3);
+  --sq-hint: rgba(158, 206, 106, 0.16);
+  --sq-err: rgba(247, 118, 142, 0.5);
+  --sq-sel-outline: rgba(158, 206, 106, 0.8);
 }
 
 :root[data-theme='catppuccin-mocha'] .pc.promoted,
@@ -351,7 +465,8 @@
 :root[data-theme='nord'] .pc.promoted,
 :root[data-theme='dracula'] .pc.promoted,
 :root[data-theme='gruvbox'] .pc.promoted,
-:root[data-theme='solarized'] .pc.promoted {
+:root[data-theme='solarized'] .pc.promoted,
+:root[data-theme='tokyo-night'] .pc.promoted {
   color: var(--piece-promoted);
 }
 
@@ -412,4 +527,53 @@ body {
   color: var(--dim);
   text-decoration: underline;
   padding: 9px 4px;
+}
+
+:root[data-piece-font='gothique'] {
+  --piece-font: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', 'Yu Gothic', YuGothic,
+    'Noto Sans JP', sans-serif;
+}
+
+:root[data-piece-font='arrondie'] {
+  --piece-font: 'Hiragino Maru Gothic ProN', 'Zen Maru Gothic', 'YuGothic', 'Noto Sans JP',
+    sans-serif;
+}
+
+/*
+ * Barre de navigation flottante. Sur téléphone, les deux chevrons — le geste
+ * qu'on répète le plus, qu'il s'agisse d'avancer dans une partie ou de passer à
+ * la gaffe suivante — quittent le flux et se posent en bas à droite de l'écran,
+ * sous le pouce. Ailleurs ils restent où ils sont, dans leur rangée.
+ *
+ * `.btn-ghost` dans le sélecteur, et non `.btn` seul : les règles voisines
+ * (`.eval-controls .btn`, `.training-nav .btn`) ont deux classes, et une media
+ * query n'ajoute aucune spécificité.
+ */
+.float-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+@media (max-width: 860px) {
+  .float-nav {
+    position: fixed;
+    right: 10px;
+    /* `env()` tient compte de la barre d'accueil de l'iPhone ; les 14 px
+       supplémentaires dégagent la barre d'adresse de Safari. */
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
+    z-index: 30;
+    gap: 8px;
+  }
+
+  .float-nav .btn.btn-ghost {
+    width: 56px;
+    height: 52px;
+    padding: 0;
+    font-size: 24px;
+    line-height: 1;
+    border-radius: 16px;
+    background: var(--surface2);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  }
 }

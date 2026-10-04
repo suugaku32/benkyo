@@ -12,6 +12,7 @@ export const THEMES = [
   'dracula',
   'gruvbox',
   'solarized',
+  'tokyo-night',
 ] as const;
 export type Theme = (typeof THEMES)[number];
 
@@ -25,6 +26,7 @@ export const THEME_LABEL_FR: Record<Theme, string> = {
   dracula: 'Dracula',
   gruvbox: 'Gruvbox',
   solarized: 'Solarized',
+  'tokyo-night': 'Tokyo Night',
 };
 
 const KEY = 'jaaa7up-theme';

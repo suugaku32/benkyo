@@ -41,8 +41,15 @@
   stroke-width: 1.5;
 }
 
+/*
+ * Cachée par défaut : sur bureau la rangée de commandes en tête de la carte
+ * dit déjà tout ça (`.eval-controls-info`). Elle ne réapparaît que sous
+ * 861 px, où cette rangée est resserrée par les chevrons flottants qui en
+ * sortent (voir `.float-nav`) et n'a pas la place d'ajouter coup et score
+ * sans les tronquer.
+ */
 .eval-tooltip {
-  display: flex;
+  display: none;
   gap: 12px;
   align-items: baseline;
   font-size: 12px;
@@ -60,25 +67,150 @@
   font-variant-numeric: tabular-nums;
 }
 
-.eval-tooltip-quality {
-  font-weight: 600;
-}
-
-.eval-legend {
-  display: flex;
-  gap: 14px;
-  font-size: 11px;
-  color: var(--text);
-  padding: 0 6px 6px;
-  flex-wrap: wrap;
-}
-
-.eval-legend-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+@media (max-width: 860px) {
+  .eval-tooltip {
+    display: flex;
+  }
 }
 
 .eval-area {
   fill-opacity: var(--area-opacity, 0.18);
+}
+
+/* Repères de l'axe vertical. Discrets : ils servent à situer une hauteur, pas
+   à être lus en permanence. */
+.eval-gridline {
+  stroke: var(--gridline);
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
+}
+
+.eval-gridlabel {
+  fill: var(--dim);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * La rangée de commandes, en tête de la carte de la courbe : naviguer dans la
+ * partie et situer un moment de la partie sont le même geste.
+ */
+.eval-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 4px 2px;
+}
+
+/* Deux chevrons, pas quatre : « début » et « fin » ne servaient qu'à ce que la
+   courbe fait mieux — on y touche du doigt l'endroit voulu. Leur mise en page
+   flottante sur téléphone est commune à tout le site : voir `.float-nav`. */
+
+/*
+ * Entre les chevrons et le bouton de la suite : le coup survolé, son score et
+ * si c'est un bon coup ou pas — ce que l'info-bulle disait sous le graphe et
+ * qu'on ne voyait qu'en cherchant. `flex: 1` occupe tout l'espace laissé
+ * libre entre les deux — les chevrons gardent leur largeur propre, `.btn-line`
+ * garde la sienne (et sa marge automatique, sans effet ici puisqu'il ne reste
+ * alors plus d'espace à pousser) — et centre le groupe dedans.
+ */
+.eval-controls-info {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/*
+ * Cachée sous 861 px : elle double alors `.eval-tooltip`, sous le graphe, qui
+ * a la place d'afficher coup, score et qualité sans les tronquer — cette
+ * rangée-ci, resserrée par les chevrons flottants (`.float-nav`), ne l'a pas.
+ */
+@media (max-width: 860px) {
+  .eval-controls-info {
+    display: none;
+  }
+}
+
+.eval-controls-ply {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.eval-controls-score {
+  font-size: 12px;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+/* Juste à gauche de « Meilleure suite » : le verdict sur le coup survolé. */
+.eval-quality-badge {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/*
+ * Le bouton qui donne les flèches à la suite du moteur. Actif, il prend la
+ * couleur du « meilleur coup » : c'est la même chose que la flèche verte sur le
+ * plateau, dont il déroule la ligne.
+ */
+.btn.btn-line {
+  /* Poussé sur le côté : il ne sert qu'une fois par ligne, les chevrons
+     servent à chaque coup. */
+  margin-left: auto;
+  flex: 0 0 auto;
+  max-width: 60%;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 7px 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.btn.btn-line.active {
+  border-color: var(--status-good);
+  color: var(--status-good);
+}
+
+/*
+ * Courbe masquée (voir la prop `spoiler`). Seul ce qui dévoile l'évaluation est
+ * flouté et rendu inerte — la courbe, ses libellés, l'info-bulle et la
+ * rangée qui nomme le coup, son score et sa qualité. Les chevrons et le bouton
+ * de la suite restent nets : naviguer ne doit rien coûter.
+ */
+.eval-graph-plot {
+  position: relative;
+}
+
+.eval-graph-concealed .eval-graph-plot > :not(.eval-graph-reveal),
+.eval-graph-concealed .eval-controls-info,
+.eval-graph-concealed .eval-tooltip {
+  filter: blur(14px);
+  pointer-events: none;
+  user-select: none;
+}
+
+.eval-graph-reveal {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  white-space: nowrap;
+  z-index: 1;
 }

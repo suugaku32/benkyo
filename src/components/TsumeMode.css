@@ -68,3 +68,38 @@
   color: var(--dim);
   margin: 0;
 }
+
+.tsume-explore {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--dim);
+}
+
+.tsume-explore label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.tsume-explore input {
+  accent-color: var(--accent);
+  /* 13 px de case à cocher se ratent au doigt. */
+  width: 18px;
+  height: 18px;
+}
+
+/* Le verdict d'une défense éprouvée : c'est la réponse à la question posée,
+   elle mérite mieux qu'une ligne grise parmi d'autres. */
+.tsume-explore-note {
+  font-size: 13px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border-left: 3px solid var(--blue);
+  background: var(--surface);
+  color: var(--text);
+}

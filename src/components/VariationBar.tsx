@@ -53,6 +53,23 @@ export function VariationBar({
 
   if (labels.length === 0) return null;
 
+  /*
+   * Avancer d'un coup à la fois par les flèches, plutôt que de viser le bon
+   * bouton dans la liste. Sur téléphone, les coups font six pixels de large de
+   * plus que le doigt, et la liste défile ; deux cibles fixes valent mieux.
+   *
+   * `null` est la position de départ, `k` la position après `k` coups. Reculer
+   * depuis le premier coup ramène donc à `null`, pas à zéro.
+   */
+  const step = (delta: -1 | 1) => {
+    const current = activeIndex ?? 0;
+    const next = current + delta;
+    if (next < 0 || next > labels.length) return;
+    onSelect(next === 0 ? null : next);
+  };
+  const atStart = activeIndex === null;
+  const atEnd = activeIndex === labels.length;
+
   return (
     <div className={`variation variation-${tone}`}>
       <span className="variation-label">{label}</span>
@@ -64,6 +81,26 @@ export function VariationBar({
           title="Revenir à la partie"
         >
           ⟲
+        </button>
+        <button
+          type="button"
+          className="variation-move variation-step"
+          onClick={() => step(-1)}
+          disabled={atStart}
+          aria-label="Coup précédent"
+          title="Coup précédent"
+        >
+          ‹
+        </button>
+        <button
+          type="button"
+          className="variation-move variation-step"
+          onClick={() => step(1)}
+          disabled={atEnd}
+          aria-label="Coup suivant"
+          title="Coup suivant"
+        >
+          ›
         </button>
         {labels.map((text, i) => (
           <button

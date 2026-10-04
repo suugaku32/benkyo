@@ -18,6 +18,13 @@ function buildStamp() {
 
 export default defineConfig({
   base: './',
+  // La même estampille, cette fois pour l'application elle-même. Le bloc du
+  // fichier HTML n'apparaît que sur l'écran de secours : quand l'app démarre
+  // normalement — c'est-à-dire presque toujours — il n'est jamais rendu, et
+  // impossible de savoir quelle version le navigateur a réellement chargée.
+  define: {
+    __BUILD_STAMP__: JSON.stringify(BUILD_STAMP),
+  },
   // Vite 8 vise par défaut safari16.4 / ios16.4. Un iPhone resté sur une version
   // antérieure ne sait alors pas analyser le bundle : erreur de syntaxe, rien ne
   // s'exécute, page blanche. On descend la cible pour couvrir les iOS plus anciens.

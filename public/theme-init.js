@@ -15,9 +15,16 @@
       'dracula',
       'gruvbox',
       'solarized',
+      'tokyo-night',
     ];
     var t = localStorage.getItem('jaaa7up-theme');
     if (known.indexOf(t) !== -1) document.documentElement.dataset.theme = t;
+
+    // Même raison pour la police des pièces : posée après le montage, tous les
+    // kanji du plateau changeraient de dessin sous l'œil.
+    var fonts = ['gothique', 'arrondie'];
+    var f = localStorage.getItem('jaaa7up-piece-font');
+    if (fonts.indexOf(f) !== -1) document.documentElement.dataset.pieceFont = f;
   } catch (e) {
     /* stockage indisponible : thème par défaut */
   }

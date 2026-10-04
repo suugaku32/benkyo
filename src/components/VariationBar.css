@@ -52,3 +52,23 @@
   outline: 1px solid var(--accent);
   font-weight: 600;
 }
+
+/* Les flèches sont les seules cibles dont la position ne bouge pas quand la
+   variante défile : elles méritent d'être franchement tapables. La taille de
+   police monte parce que « ‹ » et « › » sont des glyphes étroits. */
+.variation-step {
+  min-width: 30px;
+  padding: 2px 4px;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--dim);
+}
+
+.variation-step:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.variation-step:disabled:hover {
+  background: none;
+}

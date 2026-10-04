@@ -1,6 +1,6 @@
 import { useState } from 'react';
+import type { ReactNode } from 'react';
 import type { EvalPoint, PlyEval } from '../analysis/analyze';
-import { cpToWinPercent } from '../analysis/classify';
 import type { MoveQuality } from '../analysis/classify';
 import { QUALITY_LABEL_FR } from '../analysis/classify';
 import './EvalGraph.css';
@@ -11,17 +11,56 @@ interface EvalGraphProps {
   moveLabels: string[]; // index i = label for ply i+1 (evalCurve index i+1)
   currentPly: number;
   onSelectPly: (ply: number) => void;
+  /**
+   * Chevrons ‹ › de la rangée de commandes, en tête de la carte. Naviguer dans
+   * la partie et situer un moment de la partie sont le même geste ; une
+   * rangée séparée coûtait une ligne d'écran pour rien.
+   */
+  navControls?: ReactNode;
+  /** Bouton « Meilleure suite », à droite de la même rangée. */
+  lineControl?: ReactNode;
+  /**
+   * Masque la courbe — et le coup, le score, la qualité lus à côté — tant qu'on
+   * n'a pas demandé à la voir : elle dit d'un coup d'œil le résultat de la
+   * partie, ce qu'on ne veut pas toujours savoir avant d'avoir cherché soi-même.
+   * Les chevrons restent utilisables : on navigue sans rien dévoiler.
+   */
+  spoiler?: { revealed: boolean; onReveal: () => void };
 }
 
 const WIDTH = 760;
-const HEIGHT = 220;
+/* Réduite de 220 : la carte gagne de la hauteur d'écran, et l'échelle en
+   racine carrée reste lisible même moins haute. */
+const HEIGHT = 170;
 const PAD_X = 8;
 const PAD_TOP = 10;
 const PAD_BOTTOM = 10;
 
+/**
+ * Plafond de l'axe vertical, en centièmes de pion. Au shogi, ±2000 à ±4000 sont
+ * des écarts courants ; l'ancienne courbe traçait un pourcentage de victoire
+ * dont l'entrée est écrêtée à ±1000, si bien que +1200 et +4000 donnaient le
+ * même point. Le graphe montre désormais l'évaluation elle-même.
+ *
+ * Le pourcentage de victoire reste ce qui *classe* les coups, et c'est voulu :
+ * perdre 1800 centièmes quand on est à +3000 ne change pas l'issue, et ne
+ * mérite donc pas d'être appelé une gaffe. Les deux échelles répondent à deux
+ * questions différentes — combien, et est-ce grave.
+ */
+const AXIS_MAX_CP = 4000;
+
+/**
+ * −1..+1, positif = avantage Sente. Compression en racine carrée plutôt que
+ * linéaire : sur un axe linéaire jusqu'à 4000, les ±150 de l'ouverture sont
+ * indiscernables du zéro. Ici 1000 occupe la moitié de la hauteur, 250 le quart.
+ */
 function displayValue(cpForBlack: number): number {
-  return cpToWinPercent(cpForBlack) - 50; // -50..+50, positive = sente advantage
+  const capped = Math.max(-AXIS_MAX_CP, Math.min(AXIS_MAX_CP, cpForBlack));
+  return Math.sign(capped) * Math.sqrt(Math.abs(capped) / AXIS_MAX_CP);
 }
+
+/** Repères de l'axe : sans eux, une échelle comprimée ne se lit pas. */
+const GRID_CP = [1000, 2000];
 
 const MARKER_QUALITIES: MoveQuality[] = ['blunder', 'mistake', 'inaccuracy'];
 const STATUS_VAR: Record<MoveQuality, string> = {
@@ -32,13 +71,22 @@ const STATUS_VAR: Record<MoveQuality, string> = {
   best: 'var(--status-good)',
 };
 
-export function EvalGraph({ evalCurve, plies, moveLabels, currentPly, onSelectPly }: EvalGraphProps) {
+export function EvalGraph({
+  evalCurve,
+  plies,
+  moveLabels,
+  currentPly,
+  onSelectPly,
+  navControls,
+  lineControl,
+  spoiler,
+}: EvalGraphProps) {
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
 
   const innerW = WIDTH - PAD_X * 2;
   const innerH = HEIGHT - PAD_TOP - PAD_BOTTOM;
   const midY = PAD_TOP + innerH / 2;
-  const scaleY = innerH / 2 / 50;
+  const scaleY = innerH / 2;
 
   const n = evalCurve.length;
   const xAt = (i: number) => PAD_X + (n <= 1 ? 0 : (i / (n - 1)) * innerW);
@@ -67,9 +115,41 @@ export function EvalGraph({ evalCurve, plies, moveLabels, currentPly, onSelectPl
   const activeIdx = hoverIdx ?? currentPly;
   const activePoint = evalCurve[activeIdx];
   const activePly = plies[activeIdx - 1];
+  const activePlyLabel =
+    activeIdx === 0 ? 'Position initiale' : `Coup ${activeIdx}${moveLabels[activeIdx - 1] ? ` — ${moveLabels[activeIdx - 1]}` : ''}`;
+
+  const concealed = spoiler !== undefined && !spoiler.revealed;
 
   return (
-    <div className="eval-graph">
+    <div className={`eval-graph${concealed ? ' eval-graph-concealed' : ''}`}>
+      {/*
+        En tête de la carte, et non sous la courbe : sur un téléphone la courbe
+        est déjà sous le plateau, et des commandes placées après elle tombaient
+        au ras du bord de l'écran (797 px sur 844).
+
+        L'indication « bon coup ou pas » vivait dans l'info-bulle sous le
+        graphe, où on ne la voyait qu'en cherchant. Elle rejoint ici les
+        chevrons et le bouton de la suite : les trois répondent à la même
+        question — où en est-on dans la partie — et se lisent d'un coup d'œil
+        au lieu de deux endroits différents.
+      */}
+      <div className="eval-controls">
+        {navControls}
+        {activePoint && (
+          <span className="eval-controls-info">
+            <span className="eval-controls-ply">{activePlyLabel}</span>
+            <span className="eval-controls-score">{formatCp(activePoint.cpForBlack)}</span>
+            {activePly && (
+              <span className="eval-quality-badge" style={{ color: STATUS_VAR[activePly.quality] }}>
+                {QUALITY_LABEL_FR[activePly.quality]}
+              </span>
+            )}
+          </span>
+        )}
+        {lineControl}
+      </div>
+
+      <div className="eval-graph-plot">
       <div className="eval-graph-labels">
         <span className="eval-side-label top">▲ Sente</span>
         <span className="eval-side-label bottom">△ Gote</span>
@@ -109,6 +189,35 @@ export function EvalGraph({ evalCurve, plies, moveLabels, currentPly, onSelectPl
         <path d={linePath} fill="none" stroke="var(--diverging-pos)" strokeWidth={2} clipPath="url(#clip-top)" />
         <path d={linePath} fill="none" stroke="var(--diverging-neg)" strokeWidth={2} clipPath="url(#clip-bottom)" />
 
+        {GRID_CP.map((cp) => (
+          <g key={cp}>
+            {[cp, -cp].map((v) => (
+              <line
+                key={v}
+                x1={PAD_X}
+                x2={WIDTH - PAD_X}
+                y1={midY - displayValue(v) * scaleY}
+                y2={midY - displayValue(v) * scaleY}
+                className="eval-gridline"
+              />
+            ))}
+            <text
+              x={PAD_X + 2}
+              y={midY - displayValue(cp) * scaleY - 3}
+              className="eval-gridlabel"
+            >
+              {cp}
+            </text>
+            <text
+              x={PAD_X + 2}
+              y={midY + displayValue(cp) * scaleY - 3}
+              className="eval-gridlabel"
+            >
+              −{cp}
+            </text>
+          </g>
+        ))}
+
         <line x1={PAD_X} x2={WIDTH - PAD_X} y1={midY} y2={midY} className="eval-baseline" />
 
         {markers.map(({ p, i }) => (
@@ -120,32 +229,39 @@ export function EvalGraph({ evalCurve, plies, moveLabels, currentPly, onSelectPl
         )}
         {activePoint && <circle cx={xAt(activeIdx)} cy={yAt(activeIdx)} r={4} className="eval-cursor-dot" />}
       </svg>
+      {concealed && (
+        <button
+          type="button"
+          className="btn btn-primary eval-graph-reveal"
+          onClick={spoiler.onReveal}
+        >
+          👁 Afficher la courbe d'évaluation
+        </button>
+      )}
+      </div>
 
+      {/*
+        Sur bureau la rangée de commandes dit déjà tout ça — redondant, elle y
+        a disparu (voir `.eval-controls-info` dans `EvalGraph.css`). Sur
+        téléphone en revanche cette rangée est resserrée par les chevrons qui
+        en sortent (voir `.float-nav`), pas la place d'y ajouter coup, score
+        et qualité sans les tronquer ; ils gardent donc leur propre ligne, la
+        qualité en tête plutôt qu'en fin — c'est elle qu'on cherche d'abord.
+      */}
       {activePoint && (
         <div className="eval-tooltip">
-          <span className="eval-tooltip-ply">
-            {activeIdx === 0 ? 'Position initiale' : `Coup ${activeIdx}${moveLabels[activeIdx - 1] ? ` — ${moveLabels[activeIdx - 1]}` : ''}`}
-          </span>
-          <span className="eval-tooltip-score">
-            {formatCp(activePoint.cpForBlack)}
-          </span>
-          {activePly && MARKER_QUALITIES.includes(activePly.quality) && (
-            <span className="eval-tooltip-quality" style={{ color: STATUS_VAR[activePly.quality] }}>
+          {activePly && (
+            <span className="eval-quality-badge" style={{ color: STATUS_VAR[activePly.quality] }}>
               {QUALITY_LABEL_FR[activePly.quality]}
             </span>
           )}
+          <span className="eval-tooltip-ply">{activePlyLabel}</span>
+          <span className="eval-tooltip-score">
+            {formatCp(activePoint.cpForBlack)}
+          </span>
         </div>
       )}
 
-      {markers.length > 0 && (
-        <div className="eval-legend">
-          {MARKER_QUALITIES.filter((q) => markers.some((m) => m.p.quality === q)).map((q) => (
-            <span key={q} className="eval-legend-item">
-              <MarkerShapeIcon quality={q} /> {QUALITY_LABEL_FR[q]}
-            </span>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -192,13 +308,5 @@ function MarkerShape({ x, y, quality }: { x: number; y: number; quality: MoveQua
       stroke="var(--surface)"
       strokeWidth={1.5}
     />
-  );
-}
-
-function MarkerShapeIcon({ quality }: { quality: MoveQuality }) {
-  return (
-    <svg width={12} height={12} viewBox="0 0 12 12" aria-hidden="true">
-      <MarkerShape x={6} y={6} quality={quality} />
-    </svg>
   );
 }

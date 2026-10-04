@@ -1,18 +1,7 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { parseKifu } from '../shogi/parser';
+import { MovetimeSlider } from './MovetimeSlider';
 import './KifuInput.css';
-
-const EXAMPLE_KIF = `手合割：平手
-先手：Sente
-後手：Gote
-   1 ７六歩(77)
-   2 ３四歩(33)
-   3 ２六歩(27)
-   4 ８四歩(83)
-   5 ２五歩(26)
-   6 ８五歩(84)
-   7 ７八金(69)
-   8 ３二金(41)
-`;
 
 interface KifuInputProps {
   value: string;
@@ -33,6 +22,24 @@ export function KifuInput({
 }: KifuInputProps) {
   const [showHelp, setShowHelp] = useState(false);
 
+  /*
+   * Combien de temps ça va prendre. La question se pose depuis que le balayage
+   * monte à 2 s : sur une partie de 120 coups, c'est quatre minutes d'attente
+   * qu'on peut lancer sans le savoir. Le calcul est exact — une recherche par
+   * position, positions = coups + 1 — donc autant l'annoncer.
+   *
+   * Le kifu est relu à chaque frappe. C'est sans conséquence : quelques
+   * centaines de coups s'analysent en une fraction de milliseconde, et le
+   * résultat n'est de toute façon utilisé que pour ce chiffre.
+   */
+  const positions = useMemo(() => {
+    try {
+      return parseKifu(value).moves.length + 1;
+    } catch {
+      return null;
+    }
+  }, [value]);
+
   return (
     <div className="kifu-input">
       <textarea
@@ -47,25 +54,13 @@ export function KifuInput({
         <button type="button" className="btn btn-primary" onClick={onAnalyze} disabled={disabled || !value.trim()}>
           Analyser la partie
         </button>
-        <button type="button" className="btn btn-ghost" onClick={() => onChange(EXAMPLE_KIF)} disabled={disabled}>
-          Charger un exemple
-        </button>
-        <label className="movetime-control">
-          Temps d'analyse :
-          <select
-            value={movetimeMs}
-            onChange={(e) => onMovetimeChange(parseInt(e.target.value, 10))}
-            disabled={disabled}
-          >
-            <option value={100}>100 ms</option>
-            <option value={200}>200 ms</option>
-            <option value={400}>400 ms</option>
-            <option value={800}>800 ms</option>
-            <option value={1500}>1,5 s</option>
-            <option value={3000}>3 s</option>
-            <option value={6000}>6 s</option>
-          </select>
-        </label>
+        <MovetimeSlider
+          label="Balayage"
+          value={movetimeMs}
+          onChange={onMovetimeChange}
+          positions={positions}
+          disabled={disabled}
+        />
         <button type="button" className="btn btn-link" onClick={() => setShowHelp((v) => !v)}>
           {showHelp ? 'Masquer les formats' : 'Formats acceptés ?'}
         </button>
@@ -77,9 +72,11 @@ export function KifuInput({
           <p><strong>CSA</strong> : lignes <code>+7776FU</code> / <code>-3334FU</code>.</p>
           <p><strong>USI</strong> : <code>position startpos moves 7g7f 3c3d ...</code> ou une simple liste de coups.</p>
           <p className="kifu-help-note">
-            Chaque position de la partie est analysée pendant le <strong>temps d'analyse</strong>{' '}
-            réglé ci-dessus. Plus il est long, plus le coup recommandé et le classement des
-            coups sont fiables — au prix d'une analyse plus lente sur une longue partie.
+            Chaque position de la partie est analysée pendant le temps réglé par le curseur
+            de <strong>balayage</strong>. Plus il est long, plus le coup recommandé et le
+            classement des coups sont fiables — au prix d'une analyse plus lente sur une
+            longue partie. Une position qui paraît douteuse peut ensuite être approfondie à
+            la demande, en entraînement ou sur un tsume.
           </p>
         </div>
       )}
