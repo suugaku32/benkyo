@@ -37,6 +37,11 @@ interface Line {
 interface TrainingModeProps {
   /** Gaffes et erreurs à reprendre — pas seulement les gaffes. */
   mistakes: PlyEval[];
+  /**
+   * L'analyse de la partie se poursuit : la liste ne contient que les coups déjà
+   * classés, et d'autres s'y ajouteront — toujours à la suite, jamais avant.
+   */
+  analyzing?: boolean;
   /** Fournit le moteur, en le démarrant s'il ne l'est pas encore. */
   ensureEngine: () => Promise<UsiEngine>;
   /** Reprend cette position à la cadence demandée et met l'analyse à jour. */
@@ -54,6 +59,7 @@ interface TrainingModeProps {
 
 export function TrainingMode({
   mistakes,
+  analyzing,
   ensureEngine,
   onDeepen,
   movetimeMs,
@@ -107,7 +113,11 @@ export function TrainingMode({
   if (!current || !position) {
     return (
       <div className="training-empty">
-        <p>Aucune erreur ni gaffe détectée dans cette partie — rien à réviser ici.</p>
+        <p>
+          {analyzing
+            ? "Aucune erreur ni gaffe repérée pour l'instant — l'analyse se poursuit, les exercices apparaîtront ici dès qu'un coup sera classé."
+            : 'Aucune erreur ni gaffe détectée dans cette partie — rien à réviser ici.'}
+        </p>
       </div>
     );
   }
@@ -399,6 +409,12 @@ export function TrainingMode({
           </div>
         )}
       </div>
+
+      {analyzing && (
+        <p className="training-hint">
+          L'analyse se poursuit : d'autres exercices peuvent s'ajouter à la liste.
+        </p>
+      )}
 
       <p className="training-prompt">
         Coup {current.ply} — c'est à{' '}

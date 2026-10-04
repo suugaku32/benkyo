@@ -21,7 +21,7 @@ import {
 import type { HistoryEntry } from './storage/history';
 import { UsiEngine, engineEnvironment } from './engine/UsiEngine';
 import { analyzeGame, deepenPly, deepenTsume } from './analysis/analyze';
-import type { PartialAnalysis } from './analysis/analyze';
+import type { PartialAnalysis, PlyEval } from './analysis/analyze';
 import type { AnalysisPhase, AnalysisResult } from './analysis/analyze';
 import { QUALITY_LABEL_FR } from './analysis/classify';
 import { parseKifu } from './shogi/parser';
@@ -129,6 +129,13 @@ export default function App() {
   const showAnalysis = (phase.kind === 'done' || analyzing) && result !== null && game !== null;
   /** Interrompt l'analyse en cours, si elle en est une. */
   const abortRef = useRef<AbortController | null>(null);
+  /** Les coups déjà classés au dernier résultat partiel — voir `partialResult`. */
+  const lastPliesRef = useRef<PlyEval[]>([]);
+  /** L'onglet ouvert, lisible depuis la fin d'une analyse sans en dépendre. */
+  const tabRef = useRef<Tab>('analysis');
+  useEffect(() => {
+    tabRef.current = tab;
+  }, [tab]);
 
   useEffect(() => {
     applyTheme(theme);
@@ -215,14 +222,25 @@ export default function App() {
 
   /** Résultat provisoire : ce qu'on sait déjà, sans tsume ni liste de gaffes encore. */
   const partialResult = useCallback(
-    (parsed: ParsedGame, partial: PartialAnalysis): AnalysisResult => ({
-      startSfen: parsed.startSfen,
-      plies: partial.plies,
-      evalCurve: partial.evalCurve,
-      blunders: partial.plies.filter((p) => p.quality === 'blunder'),
-      mistakes: partial.plies.filter((p) => p.quality === 'mistake'),
-      tsumes: [],
-    }),
+    (parsed: ParsedGame, partial: PartialAnalysis): AnalysisResult => {
+      /*
+       * Un coup classé ne change plus pendant le balayage : on garde l'objet
+       * déjà publié plutôt que d'en recréer un identique à chaque position.
+       * L'entraînement, qui s'ouvre sur ces objets, ne se recalcule alors que
+       * pour ce qui est réellement nouveau.
+       */
+      const previous = lastPliesRef.current;
+      const plies = partial.plies.map((p, i) => previous[i] ?? p);
+      lastPliesRef.current = plies;
+      return {
+        startSfen: parsed.startSfen,
+        plies,
+        evalCurve: partial.evalCurve,
+        blunders: plies.filter((p) => p.quality === 'blunder'),
+        mistakes: plies.filter((p) => p.quality === 'mistake'),
+        tsumes: [],
+      };
+    },
     [],
   );
 
@@ -242,6 +260,7 @@ export default function App() {
       setAskFocus(false);
       // La partie est affichée tout de suite, sans évaluation : elle se remplit
       // à mesure que le moteur avance.
+      lastPliesRef.current = [];
       setResult(partialResult(parsed, { plies: [], evalCurve: [] }));
       setPhase({ kind: 'analyzing', step: 'scan', done: 0, total: parsed.moves.length + 1 });
 
@@ -255,7 +274,9 @@ export default function App() {
         });
         setResult(res);
         setPhase({ kind: 'done' });
-        setAskFocus(true);
+        // Quelqu'un qui s'entraîne déjà n'a pas à être interrompu en plein
+        // exercice : le joueur suivi se choisit aussi en cliquant son nom.
+        setAskFocus(tabRef.current === 'analysis');
         // Une analyse coûte des dizaines de secondes : la conserver évite de la
         // refaire pour revoir une partie.
         const saved = saveGame(parsed, res, movetimeMs);
@@ -686,7 +707,8 @@ export default function App() {
               </div>
               <span>
                 {PHASE_LABEL[phase.step]} — {phase.done} / {phase.total} positions. La partie reste
-                consultable ; l'entraînement, les tsume et l'étude s'ouvriront à la fin.
+                consultable et l'entraînement s'enrichit au fil de l'analyse ; les tsume et
+                l'étude s'ouvriront à la fin.
               </span>
             </div>
           )}
@@ -709,9 +731,8 @@ export default function App() {
               <button
                 className={`tab${tab === 'training' ? ' active' : ''}`}
                 onClick={() => setTab('training')}
-                disabled={analyzing}
               >
-                Entraînement{analyzing ? '' : ` (${focusedMistakes.length})`}
+                Entraînement ({focusedMistakes.length})
               </button>
               <button
                 className={`tab${tab === 'tsume' ? ' active' : ''}`}
@@ -962,8 +983,11 @@ export default function App() {
           ) : tab === 'training' ? (
             <TrainingMode
               mistakes={focusedMistakes}
+              analyzing={analyzing}
               ensureEngine={ensureEngine}
-              onDeepen={deepenBlunder}
+              /* Approfondir réécrit le résultat sur place ; l'analyse en cours le
+                 réécrirait à son tour à chaque position. Après, pas avant. */
+              onDeepen={analyzing ? undefined : deepenBlunder}
               movetimeMs={movetimeMs}
               flipped={flipped}
               blackName={game.black}
