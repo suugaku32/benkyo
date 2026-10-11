@@ -7,7 +7,15 @@ import { generateLegalMoves, isKingCapturable, moveToUsi } from '../shogi/moveGe
 import { formatUsiMoveAsKif } from '../shogi/notation';
 import type { Color, Move, PieceType, Square } from '../shogi/types';
 import { otherColor, sameSquare, usiToSquare } from '../shogi/types';
+import { scoreToCp } from '../analysis/classify';
 import { DEFAULT_LEVEL_ID, LEVELS, MOVE_CAP_MS, chooseMove, levelById } from '../play/opponent';
+import {
+  DEFAULT_OPENING_ID,
+  OPENINGS,
+  isBookMoveSafe,
+  nextBookMove,
+  openingById,
+} from '../play/book';
 import './PlayMode.css';
 
 const KEY = 'jaaa7up-play-v1';
@@ -17,15 +25,20 @@ type SidePick = 'b' | 'w' | 'random';
 interface Choice {
   side: SidePick;
   levelId: string;
+  openingId: string;
 }
 
 function loadChoice(): Choice {
   try {
     const raw = JSON.parse(localStorage.getItem(KEY) ?? 'null') as Partial<Choice> | null;
     const side = raw?.side === 'b' || raw?.side === 'w' || raw?.side === 'random' ? raw.side : 'b';
-    return { side, levelId: levelById(raw?.levelId ?? DEFAULT_LEVEL_ID).id };
+    return {
+      side,
+      levelId: levelById(raw?.levelId ?? DEFAULT_LEVEL_ID).id,
+      openingId: openingById(raw?.openingId ?? DEFAULT_OPENING_ID).id,
+    };
   } catch {
-    return { side: 'b', levelId: DEFAULT_LEVEL_ID };
+    return { side: 'b', levelId: DEFAULT_LEVEL_ID, openingId: DEFAULT_OPENING_ID };
   }
 }
 
@@ -44,6 +57,9 @@ function repetitionKey(pos: Position): string {
 
 /** Sennichite : la même position quatre fois. */
 const REPETITIONS_FOR_DRAW = 4;
+
+/** Recherche qui juge un coup d'ouverture : assez profonde pour voir une pièce en prise, quel que soit le niveau. */
+const BOOK_CHECK_DEPTH = 8;
 
 interface PlayModeProps {
   ensureEngine: () => Promise<UsiEngine>;
@@ -68,6 +84,7 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
   const [started, setStarted] = useState(false);
   const [humanColor, setHumanColor] = useState<Color>('b');
   const [levelId, setLevelId] = useState(DEFAULT_LEVEL_ID);
+  const [openingId, setOpeningId] = useState(DEFAULT_OPENING_ID);
   const [moves, setMoves] = useState<string[]>([]);
   const [resigned, setResigned] = useState<Color | null>(null);
   const [thinking, setThinking] = useState(false);
@@ -80,6 +97,7 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
   const token = useRef(0);
 
   const level = levelById(levelId);
+  const opening = openingById(openingId);
 
   const positions = useMemo(() => {
     const list: Position[] = [];
@@ -124,6 +142,7 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
     token.current++;
     setHumanColor(side);
     setLevelId(choice.levelId);
+    setOpeningId(choice.openingId);
     setMoves([]);
     setResigned(null);
     setThinking(false);
@@ -146,6 +165,30 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
     void (async () => {
       try {
         const engine = await ensureEngine();
+        const legal = legalMoves.map(moveToUsi);
+
+        /*
+         * L'ouverture choisie d'abord. Le coup du plan n'est joué que s'il est
+         * légal et que le moteur ne le juge pas mauvais : une recherche à part,
+         * assez profonde et à plusieurs lignes quel que soit le niveau, car un
+         * Débutant à profondeur 1 ne verrait pas qu'il laisse une pièce en prise.
+         */
+        const planned = nextBookMove(opening, position.turn, moves);
+        if (planned && legal.includes(planned)) {
+          const bookSearch = { depth: BOOK_CHECK_DEPTH, movetimeMs: MOVE_CAP_MS };
+          const best = await engine.analyze(HIRATE_SFEN, moves, bookSearch);
+          // La position d'après le coup du plan : son score est celui de
+          // l'adversaire, donc retourné pour être du point de vue de qui joue.
+          const after = await engine.analyze(HIRATE_SFEN, [...moves, planned], bookSearch);
+          if (mine !== token.current) return;
+          const bestCp = scoreToCp(best.scoreCp, best.scoreMate);
+          const plannedCp = -scoreToCp(after.scoreCp, after.scoreMate);
+          if (isBookMoveSafe(bestCp, plannedCp)) {
+            setMoves((m) => [...m, planned]);
+            return;
+          }
+        }
+
         const r = await engine.analyze(HIRATE_SFEN, moves, {
           depth: level.depth,
           movetimeMs: MOVE_CAP_MS,
@@ -163,7 +206,6 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
           setResigned(position.turn);
           return;
         }
-        const legal = legalMoves.map(moveToUsi);
         // Un coup illégal ne devrait pas venir du moteur ; s'il venait, mieux vaut
         // jouer un coup légal que de laisser la partie figée.
         setMoves((m) => [...m, legal.includes(usi) ? usi : legal[0]]);
@@ -173,7 +215,7 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
         if (mine === token.current) setThinking(false);
       }
     })();
-  }, [started, outcome, thinking, position, humanColor, moves, level, legalMoves, ensureEngine]);
+  }, [started, outcome, thinking, position, humanColor, moves, level, opening, legalMoves, ensureEngine]);
 
   const play = useCallback((usi: string) => {
     setMoves((m) => [...m, usi]);
@@ -326,6 +368,27 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
             </div>
           </fieldset>
 
+          <fieldset className="play-field">
+            <legend>Ouverture de l'ordinateur</legend>
+            <select
+              className="play-select"
+              value={choice.openingId}
+              onChange={(e) => setChoice((c) => ({ ...c, openingId: e.target.value }))}
+              aria-label="Ouverture de l'ordinateur"
+            >
+              {OPENINGS.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            <p className="play-opening-hint">
+              {openingById(choice.openingId).description}
+              {choice.openingId !== 'free' &&
+                " Il la joue tant qu'elle reste possible et que le moteur ne la juge pas mauvaise ; sinon il reprend son jeu normal."}
+            </p>
+          </fieldset>
+
           <div className="play-actions">
             <button className="btn btn-primary" onClick={start}>
               Commencer la partie
@@ -373,6 +436,7 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
         </p>
         <span className="play-level">
           {sideLabel(humanColor)} · {level.label}
+          {opening.id !== 'free' && ` · ${opening.label}`}
         </span>
       </div>
 

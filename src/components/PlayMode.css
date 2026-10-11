@@ -74,6 +74,24 @@
   min-width: 0;
 }
 
+.play-select {
+  font: inherit;
+  font-size: 13px;
+  width: 100%;
+  padding: 9px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+}
+
+.play-opening-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--dim);
+  line-height: 1.45;
+}
+
 /* La profondeur réelle du niveau : pas un détail technique, c'est elle qui rend
    la difficulté identique d'un appareil à l'autre. */
 .play-choice-depth {
