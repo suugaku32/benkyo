@@ -20,6 +20,9 @@ import './PlayMode.css';
 
 const KEY = 'jaaa7up-play-v1';
 
+/** Les familles d'ouvertures, dans l'ordre où la liste les présente. */
+const OPENING_GROUPS = [...new Set(OPENINGS.map((o) => o.group))];
+
 type SidePick = 'b' | 'w' | 'random';
 
 interface Choice {
@@ -376,10 +379,14 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
               onChange={(e) => setChoice((c) => ({ ...c, openingId: e.target.value }))}
               aria-label="Ouverture de l'ordinateur"
             >
-              {OPENINGS.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.label}
-                </option>
+              {OPENING_GROUPS.map((group) => (
+                <optgroup key={group} label={group}>
+                  {OPENINGS.filter((o) => o.group === group).map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.label}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
             <p className="play-opening-hint">

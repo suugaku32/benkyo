@@ -15,6 +15,8 @@ import type { Color } from '../shogi/types';
  */
 export interface Opening {
   id: string;
+  /** Famille, pour regrouper la liste de choix. */
+  group: 'Libre' | 'Rook en place (居飛車)' | 'Rook mobile (振り飛車)' | 'Autres';
   label: string;
   description: string;
   /** Les coups de l'ordinateur, dans l'ordre, en coordonnées de Sente. Vide : jeu libre. */
@@ -24,48 +26,84 @@ export interface Opening {
 export const OPENINGS: readonly Opening[] = [
   {
     id: 'free',
+    group: 'Libre',
     label: 'Libre',
     description: 'Le moteur choisit son ouverture.',
     plan: [],
   },
   {
     id: 'aigakari',
+    group: 'Rook en place (居飛車)',
     label: 'Aigakari (相掛かり)',
     description: 'Rook en place : le pion de rook avance vite, les deux camps s’affrontent sur le bord.',
     plan: ['2g2f', '2f2e', '6i7h'],
   },
   {
+    id: 'bogin',
+    group: 'Rook en place (居飛車)',
+    label: 'Bōgin (棒銀)',
+    description: 'L’argent « monte » sur la colonne du rook, derrière le pion de 2ᵉ avancé, pour percer sur le bord.',
+    plan: ['2g2f', '2f2e', '3i3h', '3h2g', '2g2f'],
+  },
+  {
+    id: 'yagura',
+    group: 'Rook en place (居飛車)',
+    label: 'Yagura (矢倉)',
+    description: 'Le château « tour » : argent en 7ᵉ, ors en 6ᵉ et 7ᵉ, pions de 7ᵉ et 6ᵉ avancés.',
+    plan: ['7g7f', '7i6h', '6i7h', '6g6f', '6h7g', '4i5h', '5h6g'],
+  },
+  {
+    id: 'kakugawari',
+    group: 'Rook en place (居飛車)',
+    label: 'Kakugawari (角換わり)',
+    description: 'Échange des fous dès que la diagonale s’ouvre (il faut que l’adversaire libère la sienne), puis l’argent se prépare.',
+    plan: ['7g7f', '8h2b+', '3i3h'],
+  },
+  {
     id: 'mukai',
+    group: 'Rook mobile (振り飛車)',
     label: 'Mukai-bisha (向かい飛車)',
     description: 'Le rook face à celui de l’adversaire, en huitième colonne ; le fou lui laisse la place.',
     plan: ['7g7f', '8h7g', '2h8h', '6g6f'],
   },
   {
     id: 'sanken',
+    group: 'Rook mobile (振り飛車)',
     label: 'Sanken-bisha (三間飛車)',
     description: 'Le rook en septième colonne, derrière le pion de 7ᵉ avancé.',
     plan: ['7g7f', '6g6f', '2h7h', '7i6h'],
   },
   {
     id: 'shiken',
+    group: 'Rook mobile (振り飛車)',
     label: 'Shiken-bisha (四間飛車)',
     description: 'Le rook en sixième colonne, la plus courante des ouvertures à rook mobile.',
     plan: ['7g7f', '6g6f', '2h6h'],
   },
   {
     id: 'naka',
+    group: 'Rook mobile (振り飛車)',
     label: 'Naka-bisha (中飛車)',
     description: 'Le rook au centre, en cinquième colonne, derrière un pion de 5ᵉ qui avance.',
     plan: ['5g5f', '2h5h', '7g7f'],
   },
   {
     id: 'ishida',
+    group: 'Rook mobile (振り飛車)',
     label: 'Ishida-ryu (石田流)',
     description: 'Sanken-bisha dont le rook monte en 7ᵉ rangée derrière le pion de 7ᵉ poussé en avant.',
     plan: ['7g7f', '6g6f', '2h7h', '7f7e', '7h7f'],
   },
   {
+    id: 'migishiken',
+    group: 'Autres',
+    label: 'Migi-shiken-bisha (右四間飛車)',
+    description: 'Le rook en quatrième colonne, du côté droit, et le pion de 4ᵉ poussé pour attaquer par le centre.',
+    plan: ['7g7f', '2h4h', '4g4f', '4f4e'],
+  },
+  {
     id: 'hayaishida',
+    group: 'Rook mobile (振り飛車)',
     label: 'Haya-Ishida (早石田)',
     description: 'Ishida « rapide » : le pion de 7ᵉ est poussé avant même que le rook ne bouge.',
     plan: ['7g7f', '7f7e', '2h7h', '6g6f'],

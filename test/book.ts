@@ -24,13 +24,22 @@ console.log('=== Chaque plan est jouable, pour les deux camps ===');
  * L'adversaire joue des coups de pion de bord qui ne touchent à rien de ce que
  * les plans déplacent : ils ne peuvent donc pas rendre un coup du plan illégal.
  */
-const HARMLESS_FOR_GOTE = ['1c1d', '9c9d', '1d1e', '9d9e', '1e1f', '9e9f'];
+const HARMLESS_FOR_GOTE = ['1c1d', '9c9d', '1d1e', '9d9e', '1a1b', '9a9b', '1b1c', '9b9c'];
+
+/*
+ * L'échange des fous ne se joue que si l'adversaire a ouvert sa diagonale : le
+ * pion de 3c (pour Gote) doit avoir bougé. Le test lui fait faire ce coup-là.
+ */
+const OPPONENT_SCRIPT: Record<string, string[]> = {
+  kakugawari: ['3c3d', '1c1d', '9c9d', '1d1e'],
+};
 
 for (const opening of OPENINGS) {
   for (const computer of ['b', 'w'] as const) {
     const pos = Position.fromSfen(HIRATE_SFEN);
     const moves: string[] = [];
-    const idle = (computer === 'b' ? HARMLESS_FOR_GOTE : HARMLESS_FOR_GOTE.map(mirror)).slice();
+    const script = OPPONENT_SCRIPT[opening.id] ?? HARMLESS_FOR_GOTE;
+    const idle = (computer === 'b' ? script : script.map(mirror)).slice();
     let ok = true;
     let played = 0;
     for (let guard = 0; guard < 30 && ok; guard++) {
