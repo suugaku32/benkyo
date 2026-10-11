@@ -366,6 +366,35 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
       white: names.white,
     });
 
+  /*
+   * Écran fixe : la partie occupe toute la fenêtre, sans défilement de la
+   * page. Le plateau choisit donc sa case d'après la hauteur et la largeur
+   * réellement libres de sa zone, mesurées ici.
+   */
+  const boardZoneRef = useRef<HTMLDivElement>(null);
+  const [zoneH, setZoneH] = useState(0);
+  useEffect(() => {
+    if (!started) return;
+    const el = boardZoneRef.current;
+    if (!el) return;
+    const measure = () => setZoneH(el.clientHeight);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      ro.disconnect();
+      document.body.style.overflow = prev;
+    };
+  }, [started]);
+
+  const movesRef = useRef<HTMLOListElement>(null);
+  useEffect(() => {
+    const el = movesRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [moves.length]);
+
   if (!started) {
     return (
       <div className="play">
@@ -533,7 +562,7 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
   }
 
   return (
-    <div className="play">
+    <div className="play play-screen">
       <div className="play-head">
         <p className={`play-status${outcome ? ' over' : ''}`} role="status">
           {status}
@@ -544,20 +573,12 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
         </span>
       </div>
 
-      {book && (
-        <p className={`play-book play-book-${book.state}`} role="status">
-          {book.state === 'following' &&
-            `Ouverture ${opening.label} : ${book.done}/${book.total} coups joués — l'ordinateur suit son plan.`}
-          {book.state === 'paused' &&
-            `Ouverture ${opening.label} interrompue (${book.done} sur ${book.total}) : le moteur a joué son propre coup. Le plan reprend si son prochain coup redevient possible.`}
-          {book.state === 'done' &&
-            `Ouverture ${opening.label} terminée : l'ordinateur joue maintenant librement.`}
-        </p>
-      )}
-
       <div className="play-body">
-        <div className="play-board">
+        <div className="play-board" ref={boardZoneRef}>
           <Board
+            hideCoords
+            cellSize={110}
+            fitHeight={zoneH}
             position={position}
             lastMove={lastMove}
             interactive={myTurn}
@@ -584,6 +605,16 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
         </div>
 
         <div className="play-side">
+        {book && (
+          <p className={`play-book play-book-${book.state}`} role="status">
+            {book.state === 'following' &&
+              `Ouverture ${opening.label} : ${book.done}/${book.total} coups joués — l'ordinateur suit son plan.`}
+            {book.state === 'paused' &&
+              `Ouverture ${opening.label} interrompue (${book.done} sur ${book.total}) : le moteur a joué son propre coup. Le plan reprend si son prochain coup redevient possible.`}
+            {book.state === 'done' &&
+              `Ouverture ${opening.label} terminée : l'ordinateur joue maintenant librement.`}
+          </p>
+        )}
           <div className="play-actions">
             {outcome ? (
               <>
@@ -614,7 +645,7 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
             </button>
           </div>
 
-          <ol className="play-moves" aria-label="Coups joués">
+          <ol className="play-moves" aria-label="Coups joués" ref={movesRef}>
             {labels.length === 0 && <li className="play-moves-empty">Aucun coup joué.</li>}
             {labels.map((label, i) => (
               <li key={i} className={moves.length === i + 1 ? 'last' : ''}>

@@ -33,7 +33,15 @@ export interface BoardProps {
   onSquareClick?: (sq: Square) => void;
   onHandPieceClick?: (type: PieceType) => void;
   cellSize?: number;
+  /** Sans les numéros de colonne ni les kanji de rangée autour du goban. */
+  hideCoords?: boolean;
+  /** Hauteur disponible pour tout le plateau (px) : la case est réduite pour
+   *  qu'il tienne sans défilement. Absent, seule la largeur compte. */
+  fitHeight?: number;
 }
+
+/** Ruban de pièces en main, au-dessus et en dessous du goban en mode étroit. */
+const HAND_ROW_H = 52;
 
 const RANK_KANJI = ['一', '二', '三', '四', '五', '六', '七', '八', '九'];
 
@@ -58,6 +66,8 @@ export function Board({
   onSquareClick,
   onHandPieceClick,
   cellSize: maxCellSize = 60,
+  hideCoords = false,
+  fitHeight,
 }: BoardProps) {
   /*
    * Le plateau était figé à 40 px par case, soit 382 px avec la colonne des
@@ -100,10 +110,18 @@ export function Board({
    */
   const wide = available !== null && available >= WIDE_THRESHOLD;
   const boardAvailable = available === null ? null : wide ? available - NAMES_COL_WIDTH - NAMES_GAP : available;
-  const cellSize =
+  const coordsW = hideCoords ? 9 : 9.55;
+  const byWidth =
     boardAvailable === null
       ? maxCellSize
-      : Math.max(18, Math.min(maxCellSize, Math.floor(boardAvailable / 9.55)));
+      : Math.max(18, Math.min(maxCellSize, Math.floor(boardAvailable / coordsW)));
+  // En mode étroit, deux rubans de pièces (et leurs écarts) s'ajoutent au goban ;
+  // la ligne des numéros de colonne aussi, quand elle est affichée.
+  const verticalExtra = (wide ? 0 : 2 * HAND_ROW_H + 16) + (hideCoords ? 0 : 14) + 4;
+  const cellSize =
+    fitHeight && fitHeight > 0
+      ? Math.max(18, Math.min(byWidth, Math.floor((fitHeight - verticalExtra) / 9)))
+      : byWidth;
 
   const isLegalDest = (sq: Square) => (legalDestinations ?? []).some((d) => sameSquare(d, sq));
 
@@ -201,14 +219,16 @@ export function Board({
    * goban, et non plus sur un ruban de pièces qui les en écartait.
    */
   const boardFrame = (
-      <div className="board-frame" style={{ width: boardPx + cellSize * 0.55 }}>
-        <div className="coords-files" style={{ width: boardPx }}>
-          {files.map((f) => (
-            <span key={f} style={{ width: cellSize }}>
-              {f}
-            </span>
-          ))}
-        </div>
+      <div className="board-frame" style={{ width: hideCoords ? boardPx : boardPx + cellSize * 0.55 }}>
+        {!hideCoords && (
+          <div className="coords-files" style={{ width: boardPx }}>
+            {files.map((f) => (
+              <span key={f} style={{ width: cellSize }}>
+                {f}
+              </span>
+            ))}
+          </div>
+        )}
         <div className="board-body">
           <div className="goban" style={{ width: boardPx }}>
             {rows}
@@ -305,13 +325,15 @@ export function Board({
               </svg>
             )}
           </div>
-          <div className="coords-ranks">
-            {ranks.map((r) => (
-              <span key={r} style={{ height: cellSize }}>
-                {RANK_KANJI[r - 1]}
-              </span>
-            ))}
-          </div>
+          {!hideCoords && (
+            <div className="coords-ranks">
+              {ranks.map((r) => (
+                <span key={r} style={{ height: cellSize }}>
+                  {RANK_KANJI[r - 1]}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </div>
   );
