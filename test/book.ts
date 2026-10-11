@@ -3,7 +3,16 @@
  * fin, pour les deux camps, et l'avancement dans le plan doit se déduire
  * correctement des coups déjà joués.
  */
-import { BOOK_TOLERANCE_CP, OPENINGS, isBookMoveSafe, mirror, nextBookMove, openingById } from '../src/play/book';
+import {
+  BOOK_TOLERANCE_CP,
+  OPENINGS,
+  bookStatus,
+  isBookMoveSafe,
+  matchPlan,
+  mirror,
+  nextBookMove,
+  openingById,
+} from '../src/play/book';
 import { HIRATE_SFEN, Position } from '../src/shogi/position';
 import { generateLegalMoves, moveToUsi } from '../src/shogi/moveGen';
 
@@ -87,6 +96,26 @@ console.log('=== Avancement dans le plan ===');
   check('Gote suit le plan retourné', nextBookMove(sanken, 'w', ['2g2f']) === '3c3d');
   check('jeu libre : jamais de coup', nextBookMove(openingById('free'), 'b', []) === null);
   check('identifiant inconnu : jeu libre', openingById('???').id === 'free');
+}
+
+console.log('=== Indicateur d\'ouverture ===');
+{
+  const sanken = openingById('sanken'); // 7g7f 6g6f 2h7h 7i6h
+  const st = (moves: string[], color: 'b' | 'w' = 'b') => bookStatus(sanken, color, moves);
+  check('jeu libre : pas d\'indicateur', bookStatus(openingById('free'), 'b', []) === null);
+  check('avant le premier coup : en cours, 0/4', JSON.stringify(st([])) === '{"state":"following","done":0,"total":4}');
+  check('deux coups du plan : en cours, 2/4', st(['7g7f', 'x', '6g6f', 'x'])?.state === 'following' && st(['7g7f', 'x', '6g6f', 'x'])?.done === 2);
+  check('un coup hors plan : en pause', st(['7g7f', 'x', '2g2f', 'x'])?.state === 'paused');
+  check('puis le plan reprend : de nouveau en cours', st(['7g7f', 'x', '2g2f', 'x', '6g6f', 'x'])?.state === 'following' && st(['7g7f', 'x', '2g2f', 'x', '6g6f', 'x'])?.done === 2);
+  check('plan en entier : terminé', st(['7g7f', 'x', '6g6f', 'x', '2h7h', 'x', '7i6h', 'x'])?.state === 'done');
+  check('terminé même après des coups libres', st(['7g7f', 'x', '2g2f', 'x', '6g6f', 'x', '2h7h', 'x', '7i6h', 'x'])?.state === 'done');
+  check('Gote : les coups pairs ne comptent pas', bookStatus(sanken, 'w', ['7g7f', '3c3d'])?.done === 1);
+  check(
+    'reprendre des coups revient en arrière',
+    st(['7g7f', 'x', '6g6f', 'x'])?.done === 2 && st(['7g7f', 'x'])?.done === 1,
+  );
+  const m = matchPlan(sanken, 'b', ['7g7f', 'x', '2g2f', 'x', '6g6f', 'x']);
+  check('les coups du plan sont repérés par leur rang', JSON.stringify(m.played) === '[0,4]');
 }
 
 console.log('=== Garde-fou ===');

@@ -213,3 +213,38 @@
     max-height: 30vh;
   }
 }
+
+/* L'ouverture automatique : un bandeau d'état, et une étiquette sur ses coups. */
+.play-book {
+  font-size: 13px;
+  line-height: 1.45;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left-width: 4px;
+}
+
+.play-book-following {
+  border-left-color: var(--status-good);
+}
+
+.play-book-paused {
+  border-left-color: var(--gold);
+}
+
+.play-book-done {
+  border-left-color: var(--dim);
+  color: var(--dim);
+}
+
+.play-book-tag {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--status-good);
+  border: 1px solid var(--status-good);
+  border-radius: 999px;
+  padding: 0 7px;
+  line-height: 1.6;
+}

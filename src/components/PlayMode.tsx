@@ -12,7 +12,9 @@ import { DEFAULT_LEVEL_ID, LEVELS, MOVE_CAP_MS, chooseMove, levelById } from '..
 import {
   DEFAULT_OPENING_ID,
   OPENINGS,
+  bookStatus,
   isBookMoveSafe,
+  matchPlan,
   nextBookMove,
   openingById,
 } from '../play/book';
@@ -136,6 +138,14 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
   }, [resigned, legalMoves, position, positions]);
 
   const inCheck = isKingCapturable(position, position.turn);
+
+  /*
+   * Où en est l'ouverture choisie, déduit des coups joués : c'est ce qui dit si
+   * le moteur la suit encore ou s'il joue librement.
+   */
+  const computerColor = otherColor(humanColor);
+  const book = bookStatus(opening, computerColor, moves);
+  const bookPlies = new Set(matchPlan(opening, computerColor, moves).played);
   const myTurn = started && !outcome && position.turn === humanColor;
 
   const start = () => {
@@ -447,6 +457,17 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
         </span>
       </div>
 
+      {book && (
+        <p className={`play-book play-book-${book.state}`} role="status">
+          {book.state === 'following' &&
+            `Ouverture ${opening.label} : ${book.done}/${book.total} coups joués — l'ordinateur suit son plan.`}
+          {book.state === 'paused' &&
+            `Ouverture ${opening.label} interrompue (${book.done} sur ${book.total}) : le moteur a joué son propre coup. Le plan reprend si son prochain coup redevient possible.`}
+          {book.state === 'done' &&
+            `Ouverture ${opening.label} terminée : l'ordinateur joue maintenant librement.`}
+        </p>
+      )}
+
       <div className="play-body">
         <div className="play-board">
           <Board
@@ -513,6 +534,11 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
                 <span className="move-num">{i + 1}.</span>
                 <span className="move-side">{i % 2 === 0 ? '▲' : '△'}</span>
                 <span>{label}</span>
+                {bookPlies.has(i) && (
+                  <span className="play-book-tag" title="Coup joué par l'ouverture automatique">
+                    ouverture
+                  </span>
+                )}
               </li>
             ))}
           </ol>

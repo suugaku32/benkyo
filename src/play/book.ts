@@ -128,22 +128,57 @@ export function mirror(usi: string): string {
 }
 
 /**
- * Le prochain coup du plan, ou `null` s'il n'y en a plus.
+ * Où en est le plan : les coups de ce camp qui l'ont fait avancer.
  *
- * L'avancement se déduit des coups déjà joués par ce camp : chaque coup qui est
- * le suivant du plan le fait avancer, les autres sont ignorés. Rien n'est
- * mémorisé à part — reprendre un coup, ou voir le moteur jouer autre chose un
- * tour, remet naturellement le plan là où il en est.
+ * L'avancement se déduit des coups déjà joués, rien n'est mémorisé à part :
+ * chaque coup qui est le suivant du plan le fait avancer, les autres sont
+ * ignorés. Reprendre un coup, ou voir le moteur jouer autre chose un tour,
+ * remet donc naturellement le plan là où il en est.
  */
-export function nextBookMove(opening: Opening, color: Color, moves: readonly string[]): string | null {
-  if (opening.plan.length === 0) return null;
+export function matchPlan(
+  opening: Opening,
+  color: Color,
+  moves: readonly string[],
+): { plan: readonly string[]; played: number[]; ownMoves: number } {
   const plan = color === 'b' ? opening.plan : opening.plan.map(mirror);
-  const mine = moves.filter((_, i) => (i % 2 === 0) === (color === 'b'));
-  let done = 0;
-  for (const usi of mine) {
-    if (usi === plan[done]) done++;
-  }
-  return done < plan.length ? plan[done] : null;
+  const played: number[] = [];
+  let ownMoves = 0;
+  moves.forEach((usi, i) => {
+    if ((i % 2 === 0) !== (color === 'b')) return;
+    ownMoves++;
+    if (played.length < plan.length && usi === plan[played.length]) played.push(i);
+  });
+  return { plan, played, ownMoves };
+}
+
+/** Le prochain coup du plan, ou `null` s'il n'y en a plus ou si le jeu est libre. */
+export function nextBookMove(opening: Opening, color: Color, moves: readonly string[]): string | null {
+  const { plan, played } = matchPlan(opening, color, moves);
+  return played.length < plan.length ? plan[played.length] : null;
+}
+
+/**
+ * Pour l'affichage : suit-on encore l'ouverture ?
+ *
+ * - `following` : le dernier coup du camp est un coup du plan (ou il n'a pas
+ *   encore joué) — l'ouverture est en cours, même après un écart repris.
+ * - `paused` : le dernier coup du camp n'est pas celui du plan, refusé ou
+ *   impossible ; le plan reprend si son coup redevient possible.
+ * - `done` : le plan est joué en entier.
+ */
+export type BookStatus = { state: 'following' | 'paused' | 'done'; done: number; total: number };
+
+export function bookStatus(opening: Opening, color: Color, moves: readonly string[]): BookStatus | null {
+  if (opening.plan.length === 0) return null;
+  const { plan, played, ownMoves } = matchPlan(opening, color, moves);
+  const done = played.length;
+  let lastOwn = -1;
+  moves.forEach((_, i) => {
+    if ((i % 2 === 0) === (color === 'b')) lastOwn = i;
+  });
+  const lastWasPlan = ownMoves === 0 || played.includes(lastOwn);
+  const state = done >= plan.length ? 'done' : lastWasPlan ? 'following' : 'paused';
+  return { state, done, total: plan.length };
 }
 
 /**
