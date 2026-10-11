@@ -41,7 +41,7 @@ export interface BoardProps {
 }
 
 /** Ruban de pièces en main, au-dessus et en dessous du goban en mode étroit. */
-const HAND_ROW_H = 52;
+const HAND_ROW_H = 46;
 
 const RANK_KANJI = ['一', '二', '三', '四', '五', '六', '七', '八', '九'];
 

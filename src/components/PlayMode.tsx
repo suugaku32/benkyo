@@ -392,7 +392,10 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
   const movesRef = useRef<HTMLOListElement>(null);
   useEffect(() => {
     const el = movesRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (el) {
+      el.scrollTop = el.scrollHeight;
+      el.scrollLeft = el.scrollWidth;
+    }
   }, [moves.length]);
 
   if (!started) {

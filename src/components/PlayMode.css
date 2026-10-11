@@ -267,9 +267,25 @@
 }
 
 @media (max-width: 760px) {
+  /*
+   * Téléphone : le plateau prend toute la largeur et toute la hauteur que le
+   * reste lui laisse. Tout ce qui l'entoure se compacte — état sans cadre,
+   * boutons sur une ligne, coups en bandeau horizontal, rubans de pièces plus
+   * bas — pour que ce soit la largeur de l'écran qui limite, pas la hauteur.
+   */
   .play-screen {
-    padding: 8px 10px;
-    gap: 8px;
+    padding: 4px 0 6px;
+    gap: 4px;
+  }
+
+  .play-head {
+    padding: 2px 12px;
+    background: none;
+    border: none;
+  }
+
+  .play-status {
+    font-size: 13px;
   }
 
   .play-level {
@@ -279,16 +295,71 @@
   .play-body {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr) auto;
-    gap: 8px;
+    gap: 4px;
+  }
+
+  .play-board .board-wrap {
+    gap: 4px;
+  }
+
+  .play-screen .hbox {
+    min-height: 42px;
+    padding: 4px 10px;
+    border-radius: 0;
+  }
+
+  .play-screen .hp.clickable {
+    width: 34px;
+    height: 34px;
   }
 
   .play-side {
-    max-height: 30dvh;
+    gap: 4px;
+    padding: 0 8px;
+  }
+
+  .play-side .play-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .play-side .play-actions .btn {
+    flex: 1;
+    padding: 7px 6px;
+    font-size: 13px;
+  }
+
+  .play-side .play-actions .btn-link {
+    flex: none;
+    padding: 7px 4px;
   }
 
   .play-side .play-book {
-    padding: 5px 10px;
+    padding: 4px 10px;
     font-size: 12px;
+    line-height: 1.35;
+  }
+
+  /* Les coups en une seule ligne, calée sur le dernier. */
+  .play-moves {
+    flex: none;
+    display: flex;
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: nowrap;
+    font-size: 12px;
+  }
+
+  .play-moves li {
+    flex: none;
+    padding: 5px 10px;
+    border-bottom: none;
+    border-right: 1px solid var(--border);
+  }
+
+  .play-moves li:last-child {
+    border-right: none;
   }
 }
 
