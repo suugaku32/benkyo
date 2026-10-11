@@ -678,3 +678,8 @@
   /* Les noms de joueurs peuvent être longs ; le bouton s'étire, pas la page. */
   overflow-wrap: anywhere;
 }
+
+/* Entrée vers la partie contre l'ordinateur, sous la saisie du kifu. */
+.play-entry {
+  display: flex;
+}

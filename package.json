@@ -11,8 +11,9 @@
     "preview": "vite preview",
     "test:movegen": "tsx test/movegen-vs-shogiops.ts",
     "test:parsers": "tsx test/parsers-vs-shogiops.ts",
-    "test": "npm run test:parsers && npm run test:movegen && npm run test:uchifuzume",
-    "test:uchifuzume": "tsx test/uchifuzume.ts"
+    "test": "npm run test:parsers && npm run test:movegen && npm run test:uchifuzume && npm run test:opponent",
+    "test:uchifuzume": "tsx test/uchifuzume.ts",
+    "test:opponent": "tsx test/opponent.ts"
   },
   "dependencies": {
     "react": "^19.2.8",

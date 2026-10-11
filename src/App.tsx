@@ -6,6 +6,7 @@ import { EvalGraph } from './components/EvalGraph';
 import { KifuInput } from './components/KifuInput';
 import { MovetimeSlider } from './components/MovetimeSlider';
 import { MoveList } from './components/MoveList';
+import { PlayMode } from './components/PlayMode';
 import { TrainingMode } from './components/TrainingMode';
 import { TsumeMode } from './components/TsumeMode';
 import { StudyMode } from './components/StudyMode';
@@ -117,6 +118,8 @@ export default function App() {
    * chercher soi-même avant de savoir.
    */
   const [graphRevealed, setGraphRevealed] = useState(false);
+  /** Partie contre l'ordinateur : elle prend la place de la saisie et de l'analyse. */
+  const [playing, setPlaying] = useState(false);
 
   useWakeLock();
 
@@ -547,10 +550,10 @@ export default function App() {
       className={`app${
         /* La barre de navigation flottante sort du flux et se poserait sur le
            pied de page : seul l'onglet qui la porte réserve la place. */
-        showAnalysis && tab !== 'tsume' ? ' app-navbar' : ''
+        showAnalysis && !playing && tab !== 'tsume' ? ' app-navbar' : ''
       }`}
     >
-      <header className={`app-header${showAnalysis ? ' compact' : ''}`}>
+      <header className={`app-header${showAnalysis || playing ? ' compact' : ''}`}>
         <div className="app-title">
           <h1>将棋 — Analyseur de parties</h1>
           <p className="app-tagline">
@@ -596,7 +599,7 @@ export default function App() {
               </select>
             </label>
 
-            {showAnalysis && game && (
+            {showAnalysis && game && !playing && (
               <>
                 <label className="focus-control">
                   Suivre
@@ -627,6 +630,17 @@ export default function App() {
                   onChange={changeMovetime}
                   positions={game.moves.length + 1}
                 />
+                <button
+                  className="btn btn-ghost"
+                  onClick={() => {
+                    closeOptions();
+                    setPlaying(true);
+                  }}
+                  disabled={analyzing}
+                  title={analyzing ? "Disponible à la fin de l'analyse" : undefined}
+                >
+                  ♟ Jouer contre l'ordinateur
+                </button>
                 <button className="btn btn-primary" onClick={reanalyse}>
                   {analyzing ? '↻ Recommencer l’analyse' : '↻ Réanalyser'}
                 </button>
@@ -666,7 +680,18 @@ export default function App() {
 
       {error && <div className="banner banner-error">{error}</div>}
 
-      {!showAnalysis && (
+      {playing && (
+        <PlayMode
+          ensureEngine={ensureEngine}
+          onAnalyze={(played) => {
+            setPlaying(false);
+            void analyseParsedGame(played);
+          }}
+          onExit={() => setPlaying(false)}
+        />
+      )}
+
+      {!showAnalysis && !playing && (
         <KifuInput
           value={kifuText}
           onChange={setKifuText}
@@ -677,7 +702,19 @@ export default function App() {
         />
       )}
 
-      {phase.kind === 'input' && (
+      {phase.kind === 'input' && !playing && (
+        <div className="play-entry">
+          <button
+            className="btn btn-ghost"
+            onClick={() => setPlaying(true)}
+            disabled={env.blocking}
+          >
+            ♟ Jouer contre l'ordinateur
+          </button>
+        </div>
+      )}
+
+      {phase.kind === 'input' && !playing && (
         <HistoryList
           entries={history}
           unavailable={!historyAvailable}
@@ -695,7 +732,7 @@ export default function App() {
 
       {historyNote && <div className="banner banner-warn">{historyNote}</div>}
 
-      {showAnalysis && result && game && (
+      {showAnalysis && !playing && result && game && (
         <>
           {phase.kind === 'analyzing' && (
             <div className="progress" role="status">
@@ -1024,7 +1061,7 @@ export default function App() {
         qu'on ait à empiler des z-index. Pas de `showModal()` — il refuserait
         le rendu déclaratif de React et fermerait la boîte à chaque re-rendu.
       */}
-      {askFocus && game && (
+      {askFocus && game && !playing && (
         <div className="modal-backdrop">
           <dialog open className="focus-dialog" aria-labelledby="focus-title">
             <h2 id="focus-title">Quel joueur suivez-vous ?</h2>

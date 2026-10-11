@@ -26,6 +26,21 @@ const HASH_MB = 32;
 export interface AnalyzeOptions {
   movetimeMs?: number;
   depth?: number;
+  /**
+   * Nombre de meilleures lignes demandées au moteur (1 par défaut). Au-delà de
+   * 1, `AnalyzeResult.lines` les liste dans l'ordre : c'est ce qui permet de
+   * choisir un coup autre que le meilleur, pour jouer plus faiblement.
+   */
+  multiPv?: number;
+}
+
+/** Une des meilleures lignes de la recherche, telle que le moteur la classe. */
+export interface AnalyzeLine {
+  /** Premier coup de la ligne. */
+  move: string;
+  scoreCp: number | null;
+  scoreMate: number | null;
+  pv: string[];
 }
 
 export interface AnalyzeResult {
@@ -35,6 +50,8 @@ export interface AnalyzeResult {
   /** Moves-to-mate if the engine found a forced mate (positive = side to move mates). */
   scoreMate: number | null;
   pv: string[];
+  /** Les `multiPv` meilleures lignes, de la meilleure à la moins bonne. Toujours au moins une si le moteur a trouvé un coup. */
+  lines: AnalyzeLine[];
 }
 
 let scriptLoadPromise: Promise<void> | null = null;
@@ -130,6 +147,8 @@ export class UsiEngine {
    * fond pendant qu'on explore — l'exploration passe entre deux positions.
    */
   private queue: Promise<unknown> = Promise.resolve();
+  /** Valeur de `MultiPV` déjà envoyée au moteur : inutile de la renvoyer à chaque recherche. */
+  private multiPv = 1;
 
   constructor() {
     this.ready = this.init();
@@ -206,42 +225,57 @@ export class UsiEngine {
     opts: AnalyzeOptions,
   ): Promise<AnalyzeResult> {
     await this.ready;
+    const wanted = Math.max(1, Math.round(opts.multiPv ?? 1));
+    if (wanted !== this.multiPv) {
+      this.postRaw(`setoption name MultiPV value ${wanted}`);
+      this.multiPv = wanted;
+    }
     const posCmd = moves.length
       ? `position sfen ${sfen} moves ${moves.join(' ')}`
       : `position sfen ${sfen}`;
     this.postRaw(posCmd);
 
-    let scoreCp: number | null = null;
-    let scoreMate: number | null = null;
-    let pv: string[] = [];
-    let bestDepth = -1;
+    /*
+     * Une entrée par ligne (`multipv N`), chacune avec sa propre profondeur : le
+     * moteur émet plusieurs itérations, et ne garder que la plus profonde évite
+     * de retenir une ligne écourtée émise en fin de réflexion. Sans option
+     * MultiPV, il n'y a que la ligne 1 et le comportement est celui d'avant.
+     */
+    const found = new Map<
+      number,
+      { depth: number; scoreCp: number | null; scoreMate: number | null; pv: string[] }
+    >();
     const onInfo = (line: string) => {
       if (!line.startsWith('info')) return;
       // Une borne n'est qu'un résultat partiel de la fenêtre de recherche : sa
       // variante est tronquée et son score approximatif.
       if (/\b(lowerbound|upperbound)\b/.test(line)) return;
 
+      const idxMatch = line.match(/\bmultipv (\d+)/);
+      const idx = idxMatch ? parseInt(idxMatch[1], 10) : 1;
+      const previous = found.get(idx);
+
       const depthMatch = line.match(/\bdepth (\d+)/);
-      const depth = depthMatch ? parseInt(depthMatch[1], 10) : bestDepth;
-      // Le moteur émet plusieurs itérations ; ne garder que la plus profonde
-      // évite de retenir une ligne écourtée émise en fin de réflexion.
-      if (depth < bestDepth) return;
+      const depth = depthMatch ? parseInt(depthMatch[1], 10) : (previous?.depth ?? -1);
+      if (previous && depth < previous.depth) return;
 
       const cpMatch = line.match(/score cp (-?\d+)/);
       const mateMatch = line.match(/score mate (-?\d+)/);
       const pvMatch = line.match(/ pv (.+)$/);
       if (!cpMatch && !mateMatch && !pvMatch) return;
 
-      bestDepth = depth;
+      const entry = previous ?? { depth, scoreCp: null, scoreMate: null, pv: [] };
+      entry.depth = depth;
       if (cpMatch) {
-        scoreCp = parseInt(cpMatch[1], 10);
-        scoreMate = null;
+        entry.scoreCp = parseInt(cpMatch[1], 10);
+        entry.scoreMate = null;
       }
       if (mateMatch) {
-        scoreMate = parseInt(mateMatch[1], 10);
-        scoreCp = null;
+        entry.scoreMate = parseInt(mateMatch[1], 10);
+        entry.scoreCp = null;
       }
-      if (pvMatch) pv = pvMatch[1].trim().split(/\s+/);
+      if (pvMatch) entry.pv = pvMatch[1].trim().split(/\s+/);
+      found.set(idx, entry);
     };
     this.addListener(onInfo);
 
@@ -257,7 +291,20 @@ export class UsiEngine {
     }
     const bestMoveToken = bestmoveLine.split(/\s+/)[1] ?? null;
     const bestMove = bestMoveToken === 'resign' || bestMoveToken === 'win' ? null : bestMoveToken;
-    return { bestMove, scoreCp, scoreMate, pv };
+
+    const lines: AnalyzeLine[] = [...found.entries()]
+      .sort(([a], [b]) => a - b)
+      .filter(([, e]) => e.pv.length > 0)
+      .slice(0, wanted)
+      .map(([, e]) => ({ move: e.pv[0], scoreCp: e.scoreCp, scoreMate: e.scoreMate, pv: e.pv }));
+    const main = found.get(1);
+    return {
+      bestMove,
+      scoreCp: main?.scoreCp ?? null,
+      scoreMate: main?.scoreMate ?? null,
+      pv: main?.pv ?? [],
+      lines,
+    };
   }
 
   terminate(): void {

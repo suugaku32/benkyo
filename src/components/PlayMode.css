@@ -1,0 +1,190 @@
+.play {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Réglages d'une partie : le camp, puis la difficulté, chacun en une colonne de choix. */
+.play-setup {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 560px;
+  padding: 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.play-setup h2 {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.play-field {
+  border: none;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+
+.play-field legend {
+  font-size: 13px;
+  font-weight: 700;
+  padding: 0;
+  margin-bottom: 6px;
+}
+
+.play-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Toute la ligne se touche, pas seulement le rond : au doigt, 13 px se ratent. */
+.play-choice {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: baseline;
+  gap: 4px 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.play-choice input {
+  accent-color: var(--accent);
+  align-self: center;
+}
+
+.play-choice.active {
+  background: var(--surface2);
+  border-color: var(--accent);
+}
+
+.play-choice-label {
+  font-weight: 700;
+}
+
+.play-choice-hint {
+  color: var(--dim);
+  font-size: 12px;
+  min-width: 0;
+}
+
+.play-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.play-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.play-status {
+  font-size: 14px;
+  font-weight: 600;
+  min-width: 0;
+}
+
+.play-status.over {
+  color: var(--gold);
+}
+
+.play-level {
+  font-size: 12px;
+  color: var(--dim);
+}
+
+.play-body {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+/* Même base que le plateau des autres modes : le plateau contient lui-même une
+   rangée flexible et ne converge sur une largeur stable qu'avec une base propre. */
+.play-board {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  flex: 0 1 700px;
+}
+
+.play-side {
+  flex: 1;
+  min-width: 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.play-moves {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 46vh;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+.play-moves li {
+  display: flex;
+  gap: 8px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.play-moves li:last-child {
+  border-bottom: none;
+}
+
+.play-moves li.last {
+  background: var(--surface2);
+  font-weight: 600;
+}
+
+.play-moves .move-num {
+  color: var(--dim);
+  min-width: 2.2em;
+}
+
+.play-moves-empty {
+  color: var(--dim);
+}
+
+@media (max-width: 640px) {
+  .play-choice {
+    grid-template-columns: auto 1fr;
+  }
+
+  .play-choice-hint {
+    grid-column: 2;
+  }
+
+  .play-side {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .play-moves {
+    max-height: 30vh;
+  }
+}
