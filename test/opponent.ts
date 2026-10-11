@@ -42,6 +42,8 @@ const lines = [cp('a', 100), cp('b', 60), cp('c', -20), cp('d', -400)];
 
 console.log('=== Fréquence du meilleur coup ===');
 for (const level of LEVELS) {
+  // Les alternatives les plus proches du meilleur sont à 40 cp : en dessous, aucune n'est admise.
+  if (level.pBest < 1 && level.maxLossCp < 40) continue;
   const rng = seeded(42);
   const N = 4000;
   let best = 0;
@@ -104,14 +106,14 @@ check('aucune ligne : null', chooseMove([], levelById('medium')) === null);
 check('une seule ligne : elle-même', chooseMove([cp('only', 0)], levelById('novice'), seeded(5)) === 'only');
 check('maître : toujours le meilleur', (() => {
   const rng = seeded(9);
-  for (let i = 0; i < 500; i++) if (chooseMove(lines, levelById('master'), rng) !== 'a') return false;
+  for (let i = 0; i < 500; i++) if (chooseMove(lines, levelById('n29'), rng) !== 'a') return false;
   return true;
 })());
 check('niveau inconnu : repli sur le niveau par défaut', levelById('???').id === DEFAULT_LEVEL_ID);
 
 console.log('=== Le barème ===');
 {
-  check('douze paliers', LEVELS.length === 12);
+  check('trente niveaux', LEVELS.length === 30);
   check('identifiants uniques', new Set(LEVELS.map((l) => l.id)).size === LEVELS.length);
   let ordered = true;
   for (let i = 1; i < LEVELS.length; i++) {
@@ -124,11 +126,17 @@ console.log('=== Le barème ===');
   const top = LEVELS[LEVELS.length - 1];
   check('dernier palier : toujours le meilleur coup', top.pBest === 1 && top.multiPv === 1);
   check(
-    'paliers espacés d’environ ×3 (jamais plus de ×4)',
-    LEVELS.every((l, i) => i === 0 || (l.nodes / LEVELS[i - 1].nodes <= 4 && l.nodes / LEVELS[i - 1].nodes >= 2)),
+    'niveaux espacés d’environ ×1,5 (jamais plus de ×2)',
+    LEVELS.every((l, i) => i === 0 || (l.nodes / LEVELS[i - 1].nodes <= 2 && l.nodes / LEVELS[i - 1].nodes >= 1.3)),
   );
+  check('étiquettes uniques', new Set(LEVELS.map((l) => l.label)).size === LEVELS.length);
   check('chaque palier a de quoi trouver des alternatives sauf le meilleur coup assuré', LEVELS.every((l) => (l.pBest >= 1 ? true : l.multiPv >= 2)));
-  check('anciens identifiants : medium → niveau 6', levelById('medium').id === 'l6' && levelById('master').id === 'l11');
+  check(
+    'anciens identifiants : même force qu’avant',
+    Math.abs(Math.log(levelById('medium').nodes / 3000)) < 0.3 &&
+      Math.abs(Math.log(levelById('l9').nodes / 100_000)) < 0.3 &&
+      Math.abs(Math.log(levelById('master').nodes / 1_000_000)) < 0.3,
+  );
 }
 
 console.log('=== Niveau personnalisé ===');
@@ -137,7 +145,7 @@ console.log('=== Niveau personnalisé ===');
   check('reprend les réglages', lvl.nodes === 30_000 && lvl.pBest === 0.25 && lvl.maxLossCp === 250);
   check('cherche des alternatives quand il peut se tromper', lvl.multiPv >= 2);
   check('une seule ligne quand il joue toujours le meilleur', resolveLevel(CUSTOM_LEVEL_ID, { nodes: 1000, pBest: 1, maxLossCp: 60 }).multiPv === 1);
-  check('un palier se résout sans toucher aux réglages libres', resolveLevel('l4', DEFAULT_CUSTOM).id === 'l4');
+  check('un palier se résout sans toucher aux réglages libres', resolveLevel('n4', DEFAULT_CUSTOM).id === 'n4');
   const dirty = sanitizeCustom({ nodes: 12345, pBest: 7, maxLossCp: -3 });
   check('valeur de stockage corrompue : nœuds ramenés au défaut', NODE_CHOICES.includes(dirty.nodes) && dirty.nodes === DEFAULT_CUSTOM.nodes);
   check('pBest borné à 1', dirty.pBest === 1);

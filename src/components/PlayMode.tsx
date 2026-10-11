@@ -608,14 +608,12 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
         </div>
 
         <div className="play-side">
-        {book && (
+        {book && book.state !== 'done' && (
           <p className={`play-book play-book-${book.state}`} role="status">
             {book.state === 'following' &&
               `Ouverture ${opening.label} : ${book.done}/${book.total} coups joués — l'ordinateur suit son plan.`}
             {book.state === 'paused' &&
               `Ouverture ${opening.label} interrompue (${book.done} sur ${book.total}) : le moteur a joué son propre coup. Le plan reprend si son prochain coup redevient possible.`}
-            {book.state === 'done' &&
-              `Ouverture ${opening.label} terminée : l'ordinateur joue maintenant librement.`}
           </p>
         )}
           <div className="play-actions">

@@ -308,6 +308,23 @@
     border-radius: 0;
   }
 
+  /* Le nom en entier, sur une ligne avec le camp, au lieu d'être tronqué. */
+  .play-screen .hl {
+    max-width: none;
+    min-width: 0;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 6px;
+    flex-shrink: 1;
+  }
+
+  .play-screen .hl-name {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+    font-size: 13px;
+  }
+
   .play-screen .hp.clickable {
     width: 34px;
     height: 34px;
@@ -341,25 +358,9 @@
     line-height: 1.35;
   }
 
-  /* Les coups en une seule ligne, calée sur le dernier. */
+  /* Sur un petit écran la liste des coups ne sert pas : la place va au plateau. */
   .play-moves {
-    flex: none;
-    display: flex;
-    overflow-x: auto;
-    overflow-y: hidden;
-    white-space: nowrap;
-    font-size: 12px;
-  }
-
-  .play-moves li {
-    flex: none;
-    padding: 5px 10px;
-    border-bottom: none;
-    border-right: 1px solid var(--border);
-  }
-
-  .play-moves li:last-child {
-    border-right: none;
+    display: none;
   }
 }
 
