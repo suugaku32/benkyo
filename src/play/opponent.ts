@@ -11,7 +11,10 @@ import { scoreToCp } from '../analysis/classify';
  *   meilleur, en centipions. Sans ce plafond, « un peu moins bon » deviendrait
  *   parfois une gaffe pure, et la faiblesse n'aurait plus rien d'humain.
  * - `multiPv` : combien de lignes il regarde pour trouver des alternatives.
- * - `movetimeMs` : son temps de réflexion par coup.
+ * - `depth` : jusqu'où il cherche. Une profondeur, pas une durée : un même
+ *   niveau doit jouer pareil sur un ordinateur de bureau et sur un téléphone
+ *   ancien, ce qu'une durée ne garantit pas — plus l'appareil est rapide,
+ *   plus la même durée va profond.
  */
 export interface Level {
   id: string;
@@ -20,8 +23,16 @@ export interface Level {
   pBest: number;
   maxLossCp: number;
   multiPv: number;
-  movetimeMs: number;
+  depth: number;
 }
+
+/**
+ * Plafond de temps par coup. Ce n'est pas un réglage de difficulté mais un
+ * garde-fou : la profondeur choisie s’atteint largement en deçà sur une
+ * machine ordinaire, et le plafond ne sert qu'à ne pas laisser un appareil
+ * très lent chercher indéfiniment.
+ */
+export const MOVE_CAP_MS = 10000;
 
 export const LEVELS: readonly Level[] = [
   {
@@ -31,7 +42,7 @@ export const LEVELS: readonly Level[] = [
     pBest: 0.2,
     maxLossCp: 400,
     multiPv: 6,
-    movetimeMs: 100,
+    depth: 1,
   },
   {
     id: 'easy',
@@ -40,7 +51,7 @@ export const LEVELS: readonly Level[] = [
     pBest: 0.35,
     maxLossCp: 250,
     multiPv: 5,
-    movetimeMs: 200,
+    depth: 2,
   },
   {
     id: 'medium',
@@ -49,7 +60,7 @@ export const LEVELS: readonly Level[] = [
     pBest: 0.5,
     maxLossCp: 150,
     multiPv: 4,
-    movetimeMs: 400,
+    depth: 4,
   },
   {
     id: 'hard',
@@ -58,16 +69,16 @@ export const LEVELS: readonly Level[] = [
     pBest: 0.75,
     maxLossCp: 80,
     multiPv: 3,
-    movetimeMs: 800,
+    depth: 7,
   },
   {
     id: 'master',
     label: 'Maître',
-    description: 'Toujours le meilleur coup, avec le temps de réflexion le plus long.',
+    description: 'Toujours le meilleur coup, avec la recherche la plus profonde.',
     pBest: 1,
     maxLossCp: 0,
     multiPv: 1,
-    movetimeMs: 2000,
+    depth: 18,
   },
 ];
 

@@ -24,7 +24,15 @@ const ENGINE_SCRIPT = 'yaneuraou.k-p.js';
 const HASH_MB = 32;
 
 export interface AnalyzeOptions {
+  /**
+   * Durée de la recherche. Avec `depth`, c'est un plafond de sécurité : la
+   * recherche s'arrête à la première des deux limites atteinte.
+   */
   movetimeMs?: number;
+  /**
+   * Profondeur de recherche. Contrairement à une durée, elle ne dépend pas de la
+   * vitesse de l'appareil : c'est elle qui donne la même force partout.
+   */
   depth?: number;
   /**
    * Nombre de meilleures lignes demandées au moteur (1 par défaut). Au-delà de
@@ -50,6 +58,8 @@ export interface AnalyzeResult {
   /** Moves-to-mate if the engine found a forced mate (positive = side to move mates). */
   scoreMate: number | null;
   pv: string[];
+  /** Profondeur atteinte par la meilleure ligne (0 si le moteur n'en a rien dit). */
+  depth: number;
   /** Les `multiPv` meilleures lignes, de la meilleure à la moins bonne. Toujours au moins une si le moteur a trouvé un coup. */
   lines: AnalyzeLine[];
 }
@@ -279,13 +289,21 @@ export class UsiEngine {
     };
     this.addListener(onInfo);
 
-    const movetime = opts.movetimeMs ?? 500;
-    const goCmd = opts.depth ? `go depth ${opts.depth}` : `go movetime ${movetime}`;
-    this.postRaw(goCmd);
+    /*
+     * Une profondeur seule n'a pas de durée garantie : sur un appareil lent ou
+     * dans une position ouverte, elle peut prendre bien plus longtemps que
+     * prévu. Le plafond de temps, s'il est donné, borne le pire cas sans
+     * changer le cas ordinaire.
+     */
+    const limits: string[] = [];
+    if (opts.depth) limits.push(`depth ${opts.depth}`);
+    if (opts.movetimeMs || !opts.depth) limits.push(`movetime ${opts.movetimeMs ?? 500}`);
+    this.postRaw(`go ${limits.join(' ')}`);
+    const patience = (opts.movetimeMs ?? (opts.depth ? 120000 : 500)) + 20000;
 
     let bestmoveLine: string;
     try {
-      bestmoveLine = await this.waitFor((line) => line.startsWith('bestmove'), movetime + 20000);
+      bestmoveLine = await this.waitFor((line) => line.startsWith('bestmove'), patience);
     } finally {
       this.removeListener(onInfo);
     }
@@ -303,6 +321,7 @@ export class UsiEngine {
       scoreCp: main?.scoreCp ?? null,
       scoreMate: main?.scoreMate ?? null,
       pv: main?.pv ?? [],
+      depth: main?.depth ?? 0,
       lines,
     };
   }

@@ -74,6 +74,13 @@
   min-width: 0;
 }
 
+/* La profondeur réelle du niveau : pas un détail technique, c'est elle qui rend
+   la difficulté identique d'un appareil à l'autre. */
+.play-choice-depth {
+  white-space: nowrap;
+  opacity: 0.8;
+}
+
 .play-actions {
   display: flex;
   gap: 8px;

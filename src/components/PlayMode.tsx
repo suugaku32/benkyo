@@ -7,7 +7,7 @@ import { generateLegalMoves, isKingCapturable, moveToUsi } from '../shogi/moveGe
 import { formatUsiMoveAsKif } from '../shogi/notation';
 import type { Color, Move, PieceType, Square } from '../shogi/types';
 import { otherColor, sameSquare, usiToSquare } from '../shogi/types';
-import { DEFAULT_LEVEL_ID, LEVELS, chooseMove, levelById } from '../play/opponent';
+import { DEFAULT_LEVEL_ID, LEVELS, MOVE_CAP_MS, chooseMove, levelById } from '../play/opponent';
 import './PlayMode.css';
 
 const KEY = 'jaaa7up-play-v1';
@@ -147,7 +147,8 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
       try {
         const engine = await ensureEngine();
         const r = await engine.analyze(HIRATE_SFEN, moves, {
-          movetimeMs: level.movetimeMs,
+          depth: level.depth,
+          movetimeMs: MOVE_CAP_MS,
           multiPv: level.multiPv,
         });
         if (mine !== token.current) return;
@@ -317,7 +318,9 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
                     onChange={() => setChoice((c) => ({ ...c, levelId: l.id }))}
                   />
                   <span className="play-choice-label">{l.label}</span>
-                  <span className="play-choice-hint">{l.description}</span>
+                  <span className="play-choice-hint">
+                    {l.description} <span className="play-choice-depth">Profondeur {l.depth}.</span>
+                  </span>
                 </label>
               ))}
             </div>
