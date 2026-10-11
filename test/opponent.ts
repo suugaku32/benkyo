@@ -2,7 +2,19 @@
  * Le choix du coup de l'adversaire : sa fréquence de meilleur coup, la fenêtre
  * dans laquelle il s'écarte, et le fait qu'il ne tombe jamais dans un mat.
  */
-import { chooseMove, levelById, LEVELS } from '../src/play/opponent';
+import {
+  CUSTOM_LEVEL_ID,
+  DEFAULT_CUSTOM,
+  DEFAULT_LEVEL_ID,
+  LEVELS,
+  LOSS_CHOICES,
+  NODE_CHOICES,
+  chooseMove,
+  formatNodes,
+  levelById,
+  resolveLevel,
+  sanitizeCustom,
+} from '../src/play/opponent';
 import type { AnalyzeLine } from '../src/engine/UsiEngine';
 
 let failures = 0;
@@ -95,7 +107,44 @@ check('maître : toujours le meilleur', (() => {
   for (let i = 0; i < 500; i++) if (chooseMove(lines, levelById('master'), rng) !== 'a') return false;
   return true;
 })());
-check('niveau inconnu : repli sur moyen', levelById('???').id === 'medium');
+check('niveau inconnu : repli sur le niveau par défaut', levelById('???').id === DEFAULT_LEVEL_ID);
+
+console.log('=== Le barème ===');
+{
+  check('douze paliers', LEVELS.length === 12);
+  check('identifiants uniques', new Set(LEVELS.map((l) => l.id)).size === LEVELS.length);
+  let ordered = true;
+  for (let i = 1; i < LEVELS.length; i++) {
+    const a = LEVELS[i - 1];
+    const b = LEVELS[i];
+    if (!(b.nodes > a.nodes && b.pBest >= a.pBest && b.maxLossCp <= a.maxLossCp)) ordered = false;
+  }
+  check('chaque palier cherche plus, joue mieux et s’écarte moins', ordered);
+  check('premier palier : peu de nœuds', LEVELS[0].nodes <= 10);
+  const top = LEVELS[LEVELS.length - 1];
+  check('dernier palier : toujours le meilleur coup', top.pBest === 1 && top.multiPv === 1);
+  check(
+    'paliers espacés d’environ ×3 (jamais plus de ×4)',
+    LEVELS.every((l, i) => i === 0 || (l.nodes / LEVELS[i - 1].nodes <= 4 && l.nodes / LEVELS[i - 1].nodes >= 2)),
+  );
+  check('chaque palier a de quoi trouver des alternatives sauf le meilleur coup assuré', LEVELS.every((l) => (l.pBest >= 1 ? true : l.multiPv >= 2)));
+  check('anciens identifiants : medium → niveau 6', levelById('medium').id === 'l6' && levelById('master').id === 'l11');
+}
+
+console.log('=== Niveau personnalisé ===');
+{
+  const lvl = resolveLevel(CUSTOM_LEVEL_ID, { nodes: 30_000, pBest: 0.25, maxLossCp: 250 });
+  check('reprend les réglages', lvl.nodes === 30_000 && lvl.pBest === 0.25 && lvl.maxLossCp === 250);
+  check('cherche des alternatives quand il peut se tromper', lvl.multiPv >= 2);
+  check('une seule ligne quand il joue toujours le meilleur', resolveLevel(CUSTOM_LEVEL_ID, { nodes: 1000, pBest: 1, maxLossCp: 60 }).multiPv === 1);
+  check('un palier se résout sans toucher aux réglages libres', resolveLevel('l4', DEFAULT_CUSTOM).id === 'l4');
+  const dirty = sanitizeCustom({ nodes: 12345, pBest: 7, maxLossCp: -3 });
+  check('valeur de stockage corrompue : nœuds ramenés au défaut', NODE_CHOICES.includes(dirty.nodes) && dirty.nodes === DEFAULT_CUSTOM.nodes);
+  check('pBest borné à 1', dirty.pBest === 1);
+  check('écart ramené à un choix proposé', LOSS_CHOICES.includes(dirty.maxLossCp));
+  check('stockage vide : réglages par défaut', JSON.stringify(sanitizeCustom(null)) === JSON.stringify(DEFAULT_CUSTOM));
+  check('formatNodes : 1 000 000', formatNodes(1_000_000) === '1 000 000');
+}
 
 console.log(failures === 0 ? '\nTout concorde.' : `\n${failures} écart(s).`);
 process.exit(failures === 0 ? 0 : 1);

@@ -92,11 +92,47 @@
   line-height: 1.45;
 }
 
-/* La profondeur réelle du niveau : pas un détail technique, c'est elle qui rend
-   la difficulté identique d'un appareil à l'autre. */
-.play-choice-depth {
-  white-space: nowrap;
-  opacity: 0.8;
+/* Les réglages libres : une ligne par réglage, le libellé puis le contrôle. */
+.play-custom {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.play-custom-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+
+.play-custom-row > span:first-child {
+  flex: 1 1 200px;
+}
+
+.play-custom-row select {
+  font: inherit;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+}
+
+.play-custom-row input[type='range'] {
+  flex: 1 1 140px;
+  accent-color: var(--accent);
+}
+
+.play-custom-row output {
+  min-width: 3.5em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .play-actions {

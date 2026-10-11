@@ -35,6 +35,13 @@ export interface AnalyzeOptions {
    */
   depth?: number;
   /**
+   * Nombre de nœuds de recherche. Comme la profondeur, il ne dépend pas de la
+   * vitesse de l'appareil — mais il se règle bien plus finement : une
+   * profondeur de plus coûte plusieurs fois le travail de la précédente, alors
+   * que le nombre de nœuds avance du simple au double aussi vite qu'on veut.
+   */
+  nodes?: number;
+  /**
    * Nombre de meilleures lignes demandées au moteur (1 par défaut). Au-delà de
    * 1, `AnalyzeResult.lines` les liste dans l'ordre : c'est ce qui permet de
    * choisir un coup autre que le meilleur, pour jouer plus faiblement.
@@ -296,10 +303,12 @@ export class UsiEngine {
      * changer le cas ordinaire.
      */
     const limits: string[] = [];
+    const bounded = Boolean(opts.depth || opts.nodes);
     if (opts.depth) limits.push(`depth ${opts.depth}`);
-    if (opts.movetimeMs || !opts.depth) limits.push(`movetime ${opts.movetimeMs ?? 500}`);
+    if (opts.nodes) limits.push(`nodes ${opts.nodes}`);
+    if (opts.movetimeMs || !bounded) limits.push(`movetime ${opts.movetimeMs ?? 500}`);
     this.postRaw(`go ${limits.join(' ')}`);
-    const patience = (opts.movetimeMs ?? (opts.depth ? 120000 : 500)) + 20000;
+    const patience = (opts.movetimeMs ?? (bounded ? 120000 : 500)) + 20000;
 
     let bestmoveLine: string;
     try {

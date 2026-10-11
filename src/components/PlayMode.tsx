@@ -8,7 +8,21 @@ import { formatUsiMoveAsKif } from '../shogi/notation';
 import type { Color, Move, PieceType, Square } from '../shogi/types';
 import { otherColor, sameSquare, usiToSquare } from '../shogi/types';
 import { scoreToCp } from '../analysis/classify';
-import { DEFAULT_LEVEL_ID, LEVELS, MOVE_CAP_MS, chooseMove, levelById } from '../play/opponent';
+import {
+  CUSTOM_LEVEL_ID,
+  DEFAULT_CUSTOM,
+  DEFAULT_LEVEL_ID,
+  LEVELS,
+  LOSS_CHOICES,
+  MOVE_CAP_MS,
+  NODE_CHOICES,
+  chooseMove,
+  formatNodes,
+  levelById,
+  resolveLevel,
+  sanitizeCustom,
+} from '../play/opponent';
+import type { CustomSettings, Level } from '../play/opponent';
 import {
   DEFAULT_OPENING_ID,
   OPENINGS,
@@ -29,8 +43,10 @@ type SidePick = 'b' | 'w' | 'random';
 
 interface Choice {
   side: SidePick;
+  /** Un palier, ou `CUSTOM_LEVEL_ID` pour les réglages libres de `custom`. */
   levelId: string;
   openingId: string;
+  custom: CustomSettings;
 }
 
 function loadChoice(): Choice {
@@ -39,11 +55,18 @@ function loadChoice(): Choice {
     const side = raw?.side === 'b' || raw?.side === 'w' || raw?.side === 'random' ? raw.side : 'b';
     return {
       side,
-      levelId: levelById(raw?.levelId ?? DEFAULT_LEVEL_ID).id,
+      levelId:
+        raw?.levelId === CUSTOM_LEVEL_ID ? CUSTOM_LEVEL_ID : levelById(raw?.levelId ?? DEFAULT_LEVEL_ID).id,
       openingId: openingById(raw?.openingId ?? DEFAULT_OPENING_ID).id,
+      custom: sanitizeCustom(raw?.custom),
     };
   } catch {
-    return { side: 'b', levelId: DEFAULT_LEVEL_ID, openingId: DEFAULT_OPENING_ID };
+    return {
+      side: 'b',
+      levelId: DEFAULT_LEVEL_ID,
+      openingId: DEFAULT_OPENING_ID,
+      custom: DEFAULT_CUSTOM,
+    };
   }
 }
 
@@ -65,6 +88,19 @@ const REPETITIONS_FOR_DRAW = 4;
 
 /** Recherche qui juge un coup d'ouverture : assez profonde pour voir une pièce en prise, quel que soit le niveau. */
 const BOOK_CHECK_DEPTH = 8;
+
+/** Ce que le niveau choisi change, en clair : sa description, puis ses trois réglages. */
+function describeLevel(choice: Choice): string {
+  const level = resolveLevel(choice.levelId, choice.custom);
+  const settings = `${formatNodes(level.nodes)} nœuds par coup${
+    level.pBest >= 1
+      ? ', toujours le meilleur coup'
+      : `, meilleur coup ${Math.round(level.pBest * 100)} % du temps, sinon un coup à moins de ${level.maxLossCp} cp`
+  }.`;
+  if (level.id === CUSTOM_LEVEL_ID) return `${settings} Plafond de ${MOVE_CAP_MS / 1000} s par coup.`;
+  const rank = LEVELS.findIndex((l) => l.id === level.id) + 1;
+  return `Niveau ${rank} sur ${LEVELS.length} — ${level.description} ${settings}`;
+}
 
 interface PlayModeProps {
   ensureEngine: () => Promise<UsiEngine>;
@@ -88,7 +124,7 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
   const [choice, setChoice] = useState<Choice>(loadChoice);
   const [started, setStarted] = useState(false);
   const [humanColor, setHumanColor] = useState<Color>('b');
-  const [levelId, setLevelId] = useState(DEFAULT_LEVEL_ID);
+  const [level, setLevel] = useState<Level>(() => levelById(DEFAULT_LEVEL_ID));
   const [openingId, setOpeningId] = useState(DEFAULT_OPENING_ID);
   const [moves, setMoves] = useState<string[]>([]);
   const [resigned, setResigned] = useState<Color | null>(null);
@@ -101,7 +137,6 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
   /** Invalide la réponse d'une recherche devenue sans objet (coup repris, partie recommencée). */
   const token = useRef(0);
 
-  const level = levelById(levelId);
   const opening = openingById(openingId);
 
   const positions = useMemo(() => {
@@ -154,7 +189,7 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
       choice.side === 'random' ? (Math.random() < 0.5 ? 'b' : 'w') : choice.side;
     token.current++;
     setHumanColor(side);
-    setLevelId(choice.levelId);
+    setLevel(resolveLevel(choice.levelId, choice.custom));
     setOpeningId(choice.openingId);
     setMoves([]);
     setResigned(null);
@@ -203,7 +238,7 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
         }
 
         const r = await engine.analyze(HIRATE_SFEN, moves, {
-          depth: level.depth,
+          nodes: level.nodes,
           movetimeMs: MOVE_CAP_MS,
           multiPv: level.multiPv,
         });
@@ -318,9 +353,9 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
 
   const names = useMemo(() => {
     const me = 'Vous';
-    const cpu = `Ordinateur (${level.label})`;
+    const cpu = `Ordinateur (${level.id === CUSTOM_LEVEL_ID ? `${formatNodes(level.nodes)} nœuds` : level.label})`;
     return humanColor === 'b' ? { black: me, white: cpu } : { black: cpu, white: me };
-  }, [humanColor, level.label]);
+  }, [humanColor, level]);
 
   const analyse = () =>
     onAnalyze({
@@ -363,22 +398,74 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
 
           <fieldset className="play-field">
             <legend>Difficulté</legend>
-            <div className="play-choices">
-              {LEVELS.map((l) => (
-                <label key={l.id} className={`play-choice${choice.levelId === l.id ? ' active' : ''}`}>
-                  <input
-                    type="radio"
-                    name="play-level"
-                    checked={choice.levelId === l.id}
-                    onChange={() => setChoice((c) => ({ ...c, levelId: l.id }))}
-                  />
-                  <span className="play-choice-label">{l.label}</span>
-                  <span className="play-choice-hint">
-                    {l.description} <span className="play-choice-depth">Profondeur {l.depth}.</span>
-                  </span>
-                </label>
+            <select
+              className="play-select"
+              value={choice.levelId}
+              onChange={(e) => setChoice((c) => ({ ...c, levelId: e.target.value }))}
+              aria-label="Difficulté"
+            >
+              {LEVELS.map((l, i) => (
+                <option key={l.id} value={l.id}>
+                  {i + 1}. {l.label}
+                </option>
               ))}
-            </div>
+              <option value={CUSTOM_LEVEL_ID}>Personnalisé…</option>
+            </select>
+            <p className="play-opening-hint">{describeLevel(choice)}</p>
+
+            {choice.levelId === CUSTOM_LEVEL_ID && (
+              <div className="play-custom">
+                <label className="play-custom-row">
+                  <span>Nombre de nœuds par coup</span>
+                  <select
+                    value={choice.custom.nodes}
+                    onChange={(e) =>
+                      setChoice((c) => ({ ...c, custom: { ...c.custom, nodes: Number(e.target.value) } }))
+                    }
+                  >
+                    {NODE_CHOICES.map((n) => (
+                      <option key={n} value={n}>
+                        {formatNodes(n)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="play-custom-row">
+                  <span>Part de meilleurs coups</span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={5}
+                    value={Math.round(choice.custom.pBest * 100)}
+                    onChange={(e) =>
+                      setChoice((c) => ({
+                        ...c,
+                        custom: { ...c.custom, pBest: Number(e.target.value) / 100 },
+                      }))
+                    }
+                    aria-label="Part de meilleurs coups"
+                  />
+                  <output>{Math.round(choice.custom.pBest * 100)} %</output>
+                </label>
+                <label className="play-custom-row">
+                  <span>Écart maximal du coup choisi</span>
+                  <select
+                    value={choice.custom.maxLossCp}
+                    disabled={choice.custom.pBest >= 1}
+                    onChange={(e) =>
+                      setChoice((c) => ({ ...c, custom: { ...c.custom, maxLossCp: Number(e.target.value) } }))
+                    }
+                  >
+                    {LOSS_CHOICES.map((n) => (
+                      <option key={n} value={n}>
+                        {n} cp
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            )}
           </fieldset>
 
           <fieldset className="play-field">
