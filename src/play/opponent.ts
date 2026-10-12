@@ -197,10 +197,15 @@ export function chooseMove(
   lines: AnalyzeLine[],
   level: Level,
   rng: () => number = Math.random,
+  /** Le coup que le style de jeu préfère au meilleur coup, quand il a un avis (voir `style.ts`). */
+  preferred: string | null = null,
 ): string | null {
   if (lines.length === 0) return null;
   const best = lines[0];
-  if (lines.length === 1 || level.multiPv <= 1 || rng() < level.pBest) return best.move;
+  if (lines.length === 1) return best.move;
+  // « Le meilleur coup » du niveau devient celui du style : un joueur offensif
+  // qui joue juste attaque, il n'abandonne pas son style quand il voit bien.
+  if (level.multiPv <= 1 || rng() < level.pBest) return preferred ?? best.move;
 
   const bestScore = scoreToCp(best.scoreCp, best.scoreMate);
   const alternatives = lines

@@ -24,6 +24,8 @@ import {
   sanitizeCustom,
 } from '../play/opponent';
 import type { CustomSettings, Level } from '../play/opponent';
+import { DEFAULT_STYLE_ID, STYLES, preferredMove, styleById } from '../play/style';
+import type { Style } from '../play/style';
 import {
   DEFAULT_OPENING_ID,
   OPENINGS,
@@ -47,6 +49,7 @@ interface Choice {
   /** Un palier, ou `CUSTOM_LEVEL_ID` pour les réglages libres de `custom`. */
   levelId: string;
   openingId: string;
+  styleId: string;
   custom: CustomSettings;
 }
 
@@ -59,6 +62,7 @@ function loadChoice(): Choice {
       levelId:
         raw?.levelId === CUSTOM_LEVEL_ID ? CUSTOM_LEVEL_ID : levelById(raw?.levelId ?? DEFAULT_LEVEL_ID).id,
       openingId: openingById(raw?.openingId ?? DEFAULT_OPENING_ID).id,
+      styleId: styleById(raw?.styleId).id,
       custom: sanitizeCustom(raw?.custom),
     };
   } catch {
@@ -66,6 +70,7 @@ function loadChoice(): Choice {
       side: 'b',
       levelId: DEFAULT_LEVEL_ID,
       openingId: DEFAULT_OPENING_ID,
+      styleId: DEFAULT_STYLE_ID,
       custom: DEFAULT_CUSTOM,
     };
   }
@@ -126,6 +131,7 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
   const [started, setStarted] = useState(false);
   const [humanColor, setHumanColor] = useState<Color>('b');
   const [level, setLevel] = useState<Level>(() => levelById(DEFAULT_LEVEL_ID));
+  const [style, setStyle] = useState<Style>(() => styleById(DEFAULT_STYLE_ID));
   const [openingId, setOpeningId] = useState(DEFAULT_OPENING_ID);
   const [moves, setMoves] = useState<string[]>([]);
   const [resigned, setResigned] = useState<Color | null>(null);
@@ -191,6 +197,7 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
     token.current++;
     setHumanColor(side);
     setLevel(resolveLevel(choice.levelId, choice.custom));
+    setStyle(styleById(choice.styleId));
     setOpeningId(choice.openingId);
     setMoves([]);
     setResigned(null);
@@ -241,7 +248,8 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
         const r = await engine.analyze(HIRATE_SFEN, moves, {
           nodes: level.nodes,
           movetimeMs: MOVE_CAP_MS,
-          multiPv: level.multiPv,
+          // Un style offensif a besoin de coups à comparer, même au niveau qui joue toujours le meilleur.
+          multiPv: Math.max(level.multiPv, style.multiPv),
         });
         if (mine !== token.current) return;
         const lines: AnalyzeLine[] = r.lines.length
@@ -249,7 +257,8 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
           : r.bestMove
             ? [{ move: r.bestMove, scoreCp: r.scoreCp, scoreMate: r.scoreMate, pv: [r.bestMove] }]
             : [];
-        const usi = chooseMove(lines, level);
+        const effective = style.windowCp > 0 ? { ...level, multiPv: Math.max(level.multiPv, style.multiPv) } : level;
+        const usi = chooseMove(lines, effective, Math.random, preferredMove(position, lines, style));
         if (!usi) {
           // « bestmove resign » : le moteur s'avoue battu.
           setResigned(position.turn);
@@ -264,7 +273,7 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
         if (mine === token.current) setThinking(false);
       }
     })();
-  }, [started, outcome, thinking, position, humanColor, moves, level, opening, legalMoves, ensureEngine]);
+  }, [started, outcome, thinking, position, humanColor, moves, level, style, opening, legalMoves, ensureEngine]);
 
   const play = useCallback((usi: string) => {
     setMoves((m) => [...m, usi]);
@@ -546,6 +555,23 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
             </p>
           </fieldset>
 
+          <fieldset className="play-field">
+            <legend>Style de jeu de l'ordinateur</legend>
+            <select
+              className="play-select"
+              value={choice.styleId}
+              onChange={(e) => setChoice((c) => ({ ...c, styleId: e.target.value }))}
+              aria-label="Style de jeu de l'ordinateur"
+            >
+              {STYLES.map((st) => (
+                <option key={st.id} value={st.id}>
+                  {st.label}
+                </option>
+              ))}
+            </select>
+            <p className="play-opening-hint">{styleById(choice.styleId).description}</p>
+          </fieldset>
+
           <div className="play-actions">
             <button className="btn btn-primary" onClick={start}>
               Commencer la partie
@@ -593,6 +619,7 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
         </p>
         <span className="play-level">
           {sideLabel(humanColor)} · {level.label}
+          {style.windowCp > 0 && ` · ${style.label}`}
           {opening.id !== 'free' && ` · ${opening.label}`}
         </span>
       </div>
