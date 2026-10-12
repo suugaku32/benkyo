@@ -1129,6 +1129,18 @@ export default function App() {
               configurer, sans lesquels le moteur ne peut pas utiliser plusieurs fils. MIT.
             </li>
             <li>
+              <a href="https://lishogi.org" target="_blank" rel="noreferrer">
+                Lishogi
+              </a>{' '}
+              — le « livre de parties humaines » de l'ordinateur compte les coups joués dans les parties
+              classées des meilleurs joueurs du site, récupérées via son{' '}
+              <a href="https://lishogi.org/api" target="_blank" rel="noreferrer">
+                API publique
+              </a>
+              . Il ne garde que des fréquences de coups, ni noms ni parties. Lishogi est un logiciel
+              libre (AGPL-3.0), dont aucun code n'est repris ici.
+            </li>
+            <li>
               Thèmes d'après{' '}
               <a href="https://catppuccin.com" target="_blank" rel="noreferrer">
                 Catppuccin
