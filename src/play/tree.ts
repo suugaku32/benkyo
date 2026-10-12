@@ -42,7 +42,7 @@ const TREE_PLIES = 24;
  * être exigeant sans perdre de lignes utiles ; au minimum 2, un seul passage
  * n'est pas une habitude.
  */
-const minCountFor = (games: number): number => Math.max(2, Math.round(games / 700));
+const minCountFor = (games: number): number => Math.max(2, Math.round(games / 2500));
 
 export function buildTree(games: readonly ClassifiedGame[], source: GamesFile['meta']): OpeningTree {
   const minCount = minCountFor(games.length);
