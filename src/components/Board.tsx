@@ -28,6 +28,8 @@ interface DragState {
   upsideDown: boolean;
   x: number;
   y: number;
+  /** La case sous le doigt, pour la mettre en évidence. */
+  over: Square | null;
 }
 
 export interface BoardProps {
@@ -150,8 +152,8 @@ export function Board({
   /*
    * Le glissé. On part d'un appui sur une de ses pièces ; tant que le doigt n'a
    * pas bougé de `DRAG_THRESHOLD`, c'est un tap et le `click` suivra son cours.
-   * Au-delà, la pièce suit le doigt (une copie flotte un peu au-dessus, pour
-   * que le doigt ne la cache pas) et le coup se joue au relâchement, sur la
+   * Au-delà, la pièce suit le doigt (une copie centrée sous le doigt ; la case visée
+   * s'entoure, puisque le doigt cache ce qu'il touche) et le coup se joue au relâchement, sur la
    * case alors sous le doigt. Les écouteurs sont posés sur la fenêtre : le doigt
    * sort vite de la case d'origine, et `touch-action: none` sur le goban empêche
    * le navigateur de lui voler le geste pour défiler.
@@ -184,7 +186,7 @@ export function Board({
         moving = true;
         onDragStart?.(src);
       }
-      setDrag({ src, glyph, upsideDown, x: ev.clientX, y: ev.clientY });
+      setDrag({ src, glyph, upsideDown, x: ev.clientX, y: ev.clientY, over: squareAt(ev.clientX, ev.clientY) });
     };
     const end = (ev: PointerEvent) => {
       stop();
@@ -254,6 +256,7 @@ export function Board({
         if (selected?.kind === 'square' && sameSquare(selected.sq, sq)) classes.push('sel');
         if (errorSquare && sameSquare(errorSquare, sq)) classes.push('err');
         if (isLegalDest(sq)) classes.push('hint');
+        if (drag?.over && sameSquare(drag.over, sq)) classes.push('drag-over');
         // A piece faces away from whoever sits at the bottom of the board.
         const upsideDown = piece ? (piece.color === 'w') !== flipped : false;
         return (
@@ -439,8 +442,8 @@ export function Board({
       className={`pc drag-ghost${drag.upsideDown ? ' gote' : ''}`}
       style={{
         left: drag.x,
-        top: drag.y - cellSize * 0.9,
-        fontSize: Math.round(cellSize * 0.95),
+        top: drag.y,
+        fontSize: Math.round(cellSize * 0.9),
       }}
       aria-hidden="true"
     >

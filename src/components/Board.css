@@ -381,7 +381,12 @@
   font-weight: 700;
 }
 
-/* Glissé : la pièce suit le doigt, flottant au-dessus ; la case d'origine s'efface. */
+/* Glissé : la pièce suit le doigt, centrée dessous ; la case visée s'entoure, la case d'origine s'efface. */
+.cell.drag-over {
+  outline: 3px solid var(--accent);
+  outline-offset: -3px;
+}
+
 .drag-ghost {
   position: fixed;
   z-index: 100;
