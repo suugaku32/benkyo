@@ -143,6 +143,22 @@
 }
 
 /*
+ * Au doigt : jamais de zoom par double tap (deux taps rapprochés — choisir une
+ * pièce, puis sa case d'arrivée — se lisaient comme un zoom et le second se
+ * perdait), ni de défilement qui volerait un glissé.
+ */
+.play-screen {
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.play-screen .goban,
+.play-screen .hp {
+  touch-action: none;
+}
+
+/*
  * L'écran de partie : fixe, toute la fenêtre, jamais de défilement de la page.
  * Le plateau prend la place qui reste (sa case est calculée d'après la zone,
  * voir `fitHeight` dans Board.tsx) ; la liste des coups défile à l'intérieur
@@ -303,7 +319,7 @@
   }
 
   .play-screen .hbox {
-    min-height: 42px;
+    min-height: 52px;
     padding: 4px 10px;
     border-radius: 0;
   }
@@ -325,9 +341,15 @@
     font-size: 13px;
   }
 
-  .play-screen .hp.clickable {
-    width: 34px;
-    height: 34px;
+  /* 44 px : la taille minimale d'une cible tactile. Une pièce en main est la
+     cible la plus fréquente d'un parachutage, et 34 px se ratent. */
+  .play-screen .hp {
+    width: 44px;
+    height: 44px;
+  }
+
+  .play-screen .hp .pc {
+    font-size: 28px !important;
   }
 
   .play-side {

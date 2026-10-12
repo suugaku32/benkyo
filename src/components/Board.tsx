@@ -1,5 +1,5 @@
-import { useLayoutEffect, useRef, useState } from 'react';
-import type { CSSProperties } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react';
 import type { Position } from '../shogi/position';
 import { pieceGlyph } from '../shogi/notation';
 import type { Color, PieceType, Square } from '../shogi/types';
@@ -14,6 +14,20 @@ export interface BoardArrow {
   /** Pièce parachutée. Renseignée pour un drop seulement : le cercle dit où,
    *  il faut bien que quelque chose dise quoi. */
   piece?: PieceType;
+}
+
+/** D'où part un glissé : une pièce du plateau ou une pièce en main. */
+export type DragSource = { kind: 'square'; sq: Square } | { kind: 'hand'; type: PieceType };
+
+/** Distance (px) à partir de laquelle un appui devient un glissé et non un simple tap. */
+const DRAG_THRESHOLD = 8;
+
+interface DragState {
+  src: DragSource;
+  glyph: string;
+  upsideDown: boolean;
+  x: number;
+  y: number;
 }
 
 export interface BoardProps {
@@ -32,6 +46,14 @@ export interface BoardProps {
   whiteName?: string;
   onSquareClick?: (sq: Square) => void;
   onHandPieceClick?: (type: PieceType) => void;
+  /**
+   * Glisser une de ses pièces (plateau ou main) sur une case, en plus du tap
+   * en deux temps. `onDragStart` sélectionne la pièce dès que le doigt a bougé
+   * (pour montrer où elle peut aller), `onDragEnd` joue le coup à l'endroit où
+   * on la lâche. Absents, le plateau ne se glisse pas.
+   */
+  onDragStart?: (src: DragSource) => void;
+  onDragEnd?: (src: DragSource, to: Square) => void;
   cellSize?: number;
   /** Sans les numéros de colonne ni les kanji de rangée autour du goban. */
   hideCoords?: boolean;
@@ -41,7 +63,7 @@ export interface BoardProps {
 }
 
 /** Ruban de pièces en main, au-dessus et en dessous du goban en mode étroit. */
-const HAND_ROW_H = 46;
+const HAND_ROW_H = 52;
 
 const RANK_KANJI = ['一', '二', '三', '四', '五', '六', '七', '八', '九'];
 
@@ -65,6 +87,8 @@ export function Board({
   whiteName,
   onSquareClick,
   onHandPieceClick,
+  onDragStart,
+  onDragEnd,
   cellSize: maxCellSize = 60,
   hideCoords = false,
   fitHeight,
@@ -123,6 +147,66 @@ export function Board({
       ? Math.max(18, Math.min(byWidth, Math.floor((fitHeight - verticalExtra) / 9)))
       : byWidth;
 
+  /*
+   * Le glissé. On part d'un appui sur une de ses pièces ; tant que le doigt n'a
+   * pas bougé de `DRAG_THRESHOLD`, c'est un tap et le `click` suivra son cours.
+   * Au-delà, la pièce suit le doigt (une copie flotte un peu au-dessus, pour
+   * que le doigt ne la cache pas) et le coup se joue au relâchement, sur la
+   * case alors sous le doigt. Les écouteurs sont posés sur la fenêtre : le doigt
+   * sort vite de la case d'origine, et `touch-action: none` sur le goban empêche
+   * le navigateur de lui voler le geste pour défiler.
+   */
+  const [drag, setDrag] = useState<DragState | null>(null);
+  const suppressClick = useRef(false);
+  const cleanup = useRef<(() => void) | null>(null);
+  useEffect(() => () => cleanup.current?.(), []);
+  const dragEnabled = Boolean(interactive && onDragEnd);
+
+  const beginPress = (
+    e: ReactPointerEvent,
+    src: DragSource,
+    glyph: string,
+    upsideDown: boolean,
+  ) => {
+    if (!dragEnabled || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    cleanup.current?.();
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+    let moving = false;
+    const squareAt = (x: number, y: number): Square | null => {
+      const el = document.elementFromPoint(x, y)?.closest('[data-sq]');
+      const v = el?.getAttribute('data-sq');
+      return v ? { file: Number(v[0]), rank: Number(v[1]) } : null;
+    };
+    const move = (ev: PointerEvent) => {
+      if (!moving) {
+        if (Math.hypot(ev.clientX - x0, ev.clientY - y0) < DRAG_THRESHOLD) return;
+        moving = true;
+        onDragStart?.(src);
+      }
+      setDrag({ src, glyph, upsideDown, x: ev.clientX, y: ev.clientY });
+    };
+    const end = (ev: PointerEvent) => {
+      stop();
+      if (!moving) return;
+      suppressClick.current = true;
+      setTimeout(() => (suppressClick.current = false), 0);
+      const to = squareAt(ev.clientX, ev.clientY);
+      if (to && ev.type === 'pointerup') onDragEnd?.(src, to);
+    };
+    const stop = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', end);
+      window.removeEventListener('pointercancel', end);
+      cleanup.current = null;
+      setDrag(null);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', end);
+    cleanup.current = stop;
+  };
+
   const isLegalDest = (sq: Square) => (legalDestinations ?? []).some((d) => sameSquare(d, sq));
 
   // Unflipped the board reads rank 1→9 downwards and file 9→1 rightwards; flipping
@@ -177,7 +261,13 @@ export function Board({
             key={file}
             className={classes.join(' ')}
             style={{ width: cellSize, height: cellSize }}
-            onClick={() => interactive && onSquareClick?.(sq)}
+            onClick={() => interactive && !suppressClick.current && onSquareClick?.(sq)}
+            onPointerDown={
+              piece && piece.color === handSide
+                ? (e) => beginPress(e, { kind: 'square', sq }, pieceGlyph(piece.type, piece.promoted), upsideDown)
+                : undefined
+            }
+            data-sq={`${file}${rank}`}
             role={interactive ? 'button' : undefined}
             aria-label={`${file}${rank}`}
           >
@@ -186,7 +276,7 @@ export function Board({
                 key={arriving ? flight.key : undefined}
                 className={`pc${piece.promoted ? ' promoted' : ''}${upsideDown ? ' gote' : ''}${
                   arriving ? ' pc-arriving' : ''
-                }`}
+                }${drag?.src.kind === 'square' && sameSquare(drag.src.sq, sq) ? ' pc-lifted' : ''}`}
                 style={
                   arriving
                     ? ({
@@ -205,6 +295,12 @@ export function Board({
       })}
     </div>
   ));
+
+  const handClick = (type: PieceType) => {
+    if (!suppressClick.current) onHandPieceClick?.(type);
+  };
+  const handPress = (e: ReactPointerEvent, type: PieceType) =>
+    beginPress(e, { kind: 'hand', type }, pieceGlyph(type, false), false);
 
   const top: Color = flipped ? 'b' : 'w';
   const bottom: Color = flipped ? 'w' : 'b';
@@ -338,8 +434,23 @@ export function Board({
       </div>
   );
 
+  const ghost = drag && (
+    <span
+      className={`pc drag-ghost${drag.upsideDown ? ' gote' : ''}`}
+      style={{
+        left: drag.x,
+        top: drag.y - cellSize * 0.9,
+        fontSize: Math.round(cellSize * 0.95),
+      }}
+      aria-hidden="true"
+    >
+      {drag.glyph}
+    </span>
+  );
+
   return (
     <div className="board-wrap" ref={wrapRef}>
+      {ghost}
       {wide ? (
         <div className="board-main">
           <div className="names-col">
@@ -350,7 +461,8 @@ export function Board({
               upsideDown
               interactive={interactive && handSide === top}
               selectedType={selected?.kind === 'hand' && handSide === top ? selected.type : null}
-              onClick={onHandPieceClick}
+              onClick={handClick}
+              onPress={handPress}
             />
             <NameLabel
               side={bottom}
@@ -358,7 +470,8 @@ export function Board({
               hand={position.hands[bottom]}
               interactive={interactive && handSide === bottom}
               selectedType={selected?.kind === 'hand' && handSide === bottom ? selected.type : null}
-              onClick={onHandPieceClick}
+              onClick={handClick}
+              onPress={handPress}
             />
           </div>
           <div className="board-stack">{boardFrame}</div>
@@ -372,7 +485,8 @@ export function Board({
             upsideDown
             interactive={interactive && handSide === top}
             selectedType={selected?.kind === 'hand' && handSide === top ? selected.type : null}
-            onClick={onHandPieceClick}
+            onClick={handClick}
+              onPress={handPress}
           />
           {boardFrame}
           <HandRow
@@ -382,7 +496,8 @@ export function Board({
             upsideDown={false}
             interactive={interactive && handSide === bottom}
             selectedType={selected?.kind === 'hand' && handSide === bottom ? selected.type : null}
-            onClick={onHandPieceClick}
+            onClick={handClick}
+              onPress={handPress}
           />
         </div>
       )}
@@ -406,6 +521,7 @@ function NameLabel({
   interactive,
   selectedType,
   onClick,
+  onPress,
 }: {
   side: Color;
   name?: string;
@@ -414,6 +530,7 @@ function NameLabel({
   interactive?: boolean;
   selectedType?: PieceType | null;
   onClick?: (type: PieceType) => void;
+  onPress?: (e: ReactPointerEvent, type: PieceType) => void;
 }) {
   const pieces = HAND_PIECE_ORDER.filter((t) => hand[t] > 0);
   return (
@@ -427,6 +544,7 @@ function NameLabel({
         interactive={interactive}
         selectedType={selectedType}
         onClick={onClick}
+        onPress={onPress}
       />
     </div>
   );
@@ -440,6 +558,7 @@ function HandRow({
   interactive,
   selectedType,
   onClick,
+  onPress,
 }: {
   color: Color;
   name?: string;
@@ -448,6 +567,7 @@ function HandRow({
   interactive?: boolean;
   selectedType?: PieceType | null;
   onClick?: (type: PieceType) => void;
+  onPress?: (e: ReactPointerEvent, type: PieceType) => void;
 }) {
   const pieces = HAND_PIECE_ORDER.filter((t) => hand[t] > 0);
   return (
@@ -463,6 +583,7 @@ function HandRow({
         interactive={interactive}
         selectedType={selectedType}
         onClick={onClick}
+        onPress={onPress}
       />
     </div>
   );
@@ -481,6 +602,7 @@ function HandPieces({
   interactive,
   selectedType,
   onClick,
+  onPress,
 }: {
   pieces: Exclude<PieceType, 'K'>[];
   hand: Record<Exclude<PieceType, 'K'>, number>;
@@ -488,6 +610,7 @@ function HandPieces({
   interactive?: boolean;
   selectedType?: PieceType | null;
   onClick?: (type: PieceType) => void;
+  onPress?: (e: ReactPointerEvent, type: PieceType) => void;
 }) {
   if (pieces.length === 0) return null;
   return (
@@ -497,6 +620,7 @@ function HandPieces({
           key={type}
           className={`hp${selectedType === type ? ' sel' : ''}${interactive ? ' clickable' : ''}`}
           onClick={() => interactive && onClick?.(type)}
+          onPointerDown={interactive ? (e) => onPress?.(e, type) : undefined}
           role={interactive ? 'button' : undefined}
           aria-label={`${pieceGlyph(type, false)} en main`}
         >

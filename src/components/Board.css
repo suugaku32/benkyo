@@ -380,3 +380,27 @@
   justify-content: center;
   font-weight: 700;
 }
+
+/* Glissé : la pièce suit le doigt, flottant au-dessus ; la case d'origine s'efface. */
+.drag-ghost {
+  position: fixed;
+  z-index: 100;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  filter: drop-shadow(0 6px 8px rgba(0, 0, 0, 0.5));
+}
+
+.drag-ghost.gote {
+  transform: translate(-50%, -50%) rotate(180deg);
+}
+
+.pc.pc-lifted {
+  opacity: 0.3;
+}
+
+/* Un appui sur une pièce commence peut-être un glissé : pas de menu contextuel
+   de pression longue. (Le blocage du défilement, lui, est propre à l'écran de
+   jeu : ailleurs, le plateau ne doit pas empêcher de faire défiler la page.) */
+.board-wrap {
+  -webkit-touch-callout: none;
+}

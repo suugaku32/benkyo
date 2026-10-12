@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Board } from './Board';
+import type { DragSource } from './Board';
 import type { AnalyzeLine, UsiEngine } from '../engine/UsiEngine';
 import type { ParsedGame } from '../shogi/parser';
 import { HIRATE_SFEN, Position } from '../shogi/position';
@@ -278,9 +279,9 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
     return legalMoves.filter((m) => m.from && sameSquare(m.from, selected.sq)).map((m) => m.to);
   };
 
-  const tryMove = (to: Square) => {
-    if (!selected || !myTurn) return;
-    const from = selected;
+  const tryMove = (to: Square, source: NonNullable<typeof selected> | null = selected) => {
+    if (!source || !myTurn) return;
+    const from = source;
     const candidates: Move[] = legalMoves.filter((m) => {
       if (!sameSquare(m.to, to)) return false;
       if (from.kind === 'hand') return !m.from && m.piece === from.type;
@@ -309,6 +310,26 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
       return;
     }
     if (selected) tryMove(sq);
+  };
+
+  /*
+   * Glissé-déposé : même règle que le tap en deux temps, mais d'un geste. La
+   * pièce est sélectionnée dès que le doigt bouge (les cases possibles
+   * s'allument), puis le coup se joue là où on la lâche — sur une case
+   * impossible, il ne se passe rien et la sélection est levée.
+   */
+  const onDragStart = (src: DragSource) => {
+    if (!myTurn || promptPromotion) return;
+    setSelected(src);
+  };
+
+  const onDragEnd = (src: DragSource, to: Square) => {
+    if (!myTurn || promptPromotion) return;
+    if (src.kind === 'square' && sameSquare(src.sq, to)) {
+      setSelected(null);
+      return;
+    }
+    tryMove(to, src);
   };
 
   const onHandPieceClick = (type: PieceType) => {
@@ -593,6 +614,8 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
             whiteName={names.white}
             onSquareClick={onSquareClick}
             onHandPieceClick={onHandPieceClick}
+            onDragStart={onDragStart}
+            onDragEnd={onDragEnd}
           />
           {promptPromotion && (
             <div className="promo-prompt">
