@@ -1,6 +1,6 @@
 name: Build opening tree
 
-# Régénère src/play/openingTree.json (le livre « parties humaines ») à partir de
+# Régénère src/play/openingGames.json (le livre « parties humaines ») à partir de
 # l'API publique de Lishogi, puis relance le déploiement. À lancer à la main :
 # Actions → Build opening tree → Run workflow.
 
@@ -9,13 +9,13 @@ on:
     inputs:
       players:
         description: "Joueurs du classement dont on télécharge les parties"
-        default: "40"
+        default: "60"
       games:
         description: "Parties par joueur"
-        default: "300"
+        default: "400"
       min_rating:
         description: "Classement minimal des deux joueurs"
-        default: "1900"
+        default: "1700"
 
 permissions:
   contents: write
@@ -46,7 +46,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/play/openingTree.json
+          git add src/play/openingGames.json
           if git diff --cached --quiet; then
             echo "Le livre n'a pas changé."
             exit 0

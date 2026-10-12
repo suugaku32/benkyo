@@ -124,8 +124,19 @@ export const OPENINGS: readonly Opening[] = [
 /** Par défaut l'ordinateur suit le livre de parties humaines ; sans livre généré, il joue librement. */
 export const DEFAULT_OPENING_ID = HUMAN_OPENING_ID;
 
+/** Les ouvertures du répertoire portent l'id `human` (toutes les parties) ou `human:<stratégie>`. */
+export const isHumanOpening = (id: string): boolean => id === HUMAN_OPENING_ID || id.startsWith(`${HUMAN_OPENING_ID}:`);
+
+/** La stratégie d'un id `human:<stratégie>`, ou `null` pour toutes les parties. */
+export const humanStrategyOf = (id: string): string | null =>
+  id.startsWith(`${HUMAN_OPENING_ID}:`) ? id.slice(HUMAN_OPENING_ID.length + 1) : null;
+
 export function openingById(id: string): Opening {
-  return OPENINGS.find((o) => o.id === id) ?? OPENINGS[0];
+  const base = OPENINGS.find((o) => o.id === id);
+  if (base) return base;
+  // Un id du répertoire avec stratégie : même ouverture sans plan fixe, la stratégie filtre les parties.
+  if (humanStrategyOf(id)) return { ...OPENINGS.find((o) => o.id === HUMAN_OPENING_ID)!, id };
+  return OPENINGS[0];
 }
 
 /**

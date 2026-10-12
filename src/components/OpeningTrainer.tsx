@@ -12,8 +12,9 @@ import { isBookMoveSafe } from '../play/book';
 import { MOVE_CAP_MS } from '../play/opponent';
 import { STRICTNESS, acceptedMoves, judgeMove, opponentReply } from '../play/repertoire';
 import type { BookMove, Strictness } from '../play/repertoire';
-import { inTree, isEmptyTree, loadTree } from '../play/tree';
-import type { OpeningTree } from '../play/tree';
+import { inTree, loadBook } from '../play/tree';
+import type { Book } from '../play/tree';
+import { STRATEGIES, strategyById } from '../play/strategy';
 import './PlayMode.css';
 
 const KEY = 'jaaa7up-repertoire-v1';
@@ -31,9 +32,14 @@ interface Settings {
   side: SidePick;
   strictness: Strictness;
   mode: OpponentMode;
+  /** La stratégie que le joueur travaille (voir `play/strategy.ts`), ou `''` pour toutes. */
+  strategy: string;
 }
 
-const DEFAULTS: Settings = { side: 'b', strictness: 'standard', mode: 'variety' };
+const DEFAULTS: Settings = { side: 'b', strictness: 'standard', mode: 'variety', strategy: '' };
+
+/** En dessous, une stratégie a trop peu de parties pour un entraînement. */
+const MIN_STRATEGY_GAMES = 15;
 
 function loadSettings(): Settings {
   try {
@@ -42,6 +48,7 @@ function loadSettings(): Settings {
       side: raw?.side === 'b' || raw?.side === 'w' || raw?.side === 'random' ? raw.side : DEFAULTS.side,
       strictness: raw?.strictness && raw.strictness in STRICTNESS ? raw.strictness : DEFAULTS.strictness,
       mode: raw?.mode === 'main' ? 'main' : 'variety',
+      strategy: strategyById(raw?.strategy) ? raw!.strategy! : '',
     };
   } catch {
     return DEFAULTS;
@@ -77,12 +84,12 @@ interface Props {
  */
 export function OpeningTrainer({ ensureEngine, onExit }: Props) {
   const [settings, setSettings] = useState<Settings>(loadSettings);
-  const [tree, setTree] = useState<OpeningTree | null>(null);
+  const [book, setBook] = useState<Book | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
   useEffect(() => {
     let alive = true;
-    loadTree().then(
-      (t) => alive && setTree(t),
+    loadBook().then(
+      (b) => alive && setBook(b),
       () => alive && setLoadFailed(true),
     );
     return () => {
@@ -92,6 +99,12 @@ export function OpeningTrainer({ ensureEngine, onExit }: Props) {
 
   const [started, setStarted] = useState(false);
   const [humanColor, setHumanColor] = useState<Color>('b');
+  // L'arbre de la séance : les parties où l'on joue, dans son camp, la stratégie choisie (ou toutes).
+  const [sessionStrategy, setSessionStrategy] = useState<string | null>(null);
+  const tree = useMemo(
+    () => (book && started ? book.tree(humanColor, sessionStrategy) : null),
+    [book, started, humanColor, sessionStrategy],
+  );
   const [moves, setMoves] = useState<string[]>([]);
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [stats, setStats] = useState({ good: 0, errors: 0, hints: 0 });
@@ -135,6 +148,7 @@ export function OpeningTrainer({ ensureEngine, onExit }: Props) {
     saveSettings(settings);
     token.current++;
     setHumanColor(settings.side === 'random' ? (Math.random() < 0.5 ? 'b' : 'w') : settings.side);
+    setSessionStrategy(settings.strategy || null);
     setMoves([]);
     setFeedback(null);
     setStats({ good: 0, errors: 0, hints: 0 });
@@ -274,7 +288,7 @@ export function OpeningTrainer({ ensureEngine, onExit }: Props) {
   }, [moves.length]);
 
   if (!started) {
-    const empty = tree !== null && isEmptyTree(tree);
+    const empty = book !== null && book.meta.games === 0;
     return (
       <div className="play">
         <div className="play-setup">
@@ -315,6 +329,29 @@ export function OpeningTrainer({ ensureEngine, onExit }: Props) {
           </fieldset>
 
           <fieldset className="play-field">
+            <legend>Stratégie à travailler</legend>
+            <select
+              className="play-select"
+              value={settings.strategy}
+              onChange={(e) => setSettings((s) => ({ ...s, strategy: e.target.value }))}
+              aria-label="Stratégie à travailler"
+            >
+              <option value="">Toutes les stratégies</option>
+              {book &&
+                STRATEGIES.filter((st) => (book.strategyCounts.get(st.id) ?? 0) >= MIN_STRATEGY_GAMES).map((st) => (
+                  <option key={st.id} value={st.id}>
+                    {st.label} ({book.strategyCounts.get(st.id)} parties)
+                  </option>
+                ))}
+            </select>
+            <p className="play-opening-hint">
+              {settings.strategy
+                ? "Vous jouez cette stratégie ; l'adversaire répond comme dans les parties où elle a été jouée."
+                : 'Le répertoire entier : vous choisissez librement votre plan parmi ceux que jouent les meilleurs.'}
+            </p>
+          </fieldset>
+
+          <fieldset className="play-field">
             <legend>Exigence sur vos coups</legend>
             <select
               className="play-select"
@@ -345,8 +382,8 @@ export function OpeningTrainer({ ensureEngine, onExit }: Props) {
           </fieldset>
 
           <div className="play-actions">
-            <button className="btn btn-primary" onClick={start} disabled={!tree || empty}>
-              {tree ? 'Commencer' : 'Chargement du livre…'}
+            <button className="btn btn-primary" onClick={start} disabled={!book || empty}>
+              {book ? 'Commencer' : 'Chargement du livre…'}
             </button>
             <button className="btn btn-ghost" onClick={onExit}>
               Retour

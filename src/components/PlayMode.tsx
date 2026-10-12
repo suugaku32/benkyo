@@ -24,14 +24,17 @@ import {
   sanitizeCustom,
 } from '../play/opponent';
 import type { CustomSettings, Level } from '../play/opponent';
-import { inTree, isEmptyTree, loadTree, pickTreeMoves } from '../play/tree';
-import type { OpeningTree } from '../play/tree';
+import { inTree, isEmptyTree, loadBook, pickTreeMoves } from '../play/tree';
+import type { Book } from '../play/tree';
+import { STRATEGIES } from '../play/strategy';
 import { DEFAULT_STYLE_ID, STYLES, preferredMove, styleById } from '../play/style';
 import type { Style } from '../play/style';
 import {
   DEFAULT_OPENING_ID,
   OPENINGS,
   HUMAN_OPENING_ID,
+  humanStrategyOf,
+  isHumanOpening,
   bookStatus,
   isBookMoveSafe,
   matchPlan,
@@ -41,6 +44,9 @@ import {
 import './PlayMode.css';
 
 const KEY = 'jaaa7up-play-v1';
+
+/** En dessous, une stratégie a trop peu de parties pour un répertoire utilisable. */
+const MIN_STRATEGY_GAMES = 15;
 
 /** Les familles d'ouvertures, dans l'ordre où la liste les présente. */
 const OPENING_GROUPS = [...new Set(OPENINGS.map((o) => o.group))];
@@ -153,10 +159,10 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
   const [level, setLevel] = useState<Level>(() => levelById(DEFAULT_LEVEL_ID));
   const [style, setStyle] = useState<Style>(() => styleById(DEFAULT_STYLE_ID));
   // Le livre de parties humaines : chargé une fois, en tâche de fond (il peut peser plusieurs Mo).
-  const [tree, setTree] = useState<OpeningTree | null>(null);
+  const [repertoire, setRepertoire] = useState<Book | null>(null);
   useEffect(() => {
     let alive = true;
-    loadTree().then((t) => alive && setTree(t), () => undefined);
+    loadBook().then((b) => alive && setRepertoire(b), () => undefined);
     return () => {
       alive = false;
     };
@@ -211,6 +217,11 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
    * le moteur la suit encore ou s'il joue librement.
    */
   const computerColor = otherColor(humanColor);
+  // L'arbre que suit l'ordinateur : toutes les parties du répertoire, ou celles où il joue la stratégie choisie.
+  const activeTree = useMemo(
+    () => (repertoire && isHumanOpening(opening.id) ? repertoire.tree(computerColor, humanStrategyOf(opening.id)) : null),
+    [repertoire, opening.id, computerColor],
+  );
   const book = bookStatus(opening, computerColor, moves);
   const bookPlies = new Set(matchPlan(opening, computerColor, moves).played);
   const myTurn = started && !outcome && position.turn === humanColor;
@@ -256,11 +267,11 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
         // Les coups que le livre propose, dans l'ordre où on les essaie : le plan fixe de
         // l'ouverture choisie, ou des tirages dans le livre de parties humaines.
         const planned = nextBookMove(opening, position.turn, moves);
-        const candidates = planned
-          ? [planned]
-          : opening.id === HUMAN_OPENING_ID && moves.length < level.bookPlies
-            ? pickTreeMoves(await loadTree(), moves, position.turn)
-            : [];
+        const treeForMove =
+          isHumanOpening(opening.id) && moves.length < level.bookPlies
+            ? (activeTree ?? (await loadBook()).tree(position.turn, humanStrategyOf(opening.id)))
+            : null;
+        const candidates = planned ? [planned] : treeForMove ? pickTreeMoves(treeForMove, moves, position.turn) : [];
         const bookSearch = { depth: BOOK_CHECK_DEPTH, movetimeMs: MOVE_CAP_MS };
         let bestCp: number | null = null;
         for (const candidate of candidates) {
@@ -308,7 +319,7 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
         if (mine === token.current) setThinking(false);
       }
     })();
-  }, [started, outcome, thinking, position, humanColor, moves, level, style, opening, legalMoves, ensureEngine]);
+  }, [started, outcome, thinking, position, humanColor, moves, level, style, opening, activeTree, legalMoves, ensureEngine]);
 
   const input = useMoveInput({
     position,
@@ -504,15 +515,25 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
                   {OPENINGS.filter((o) => o.group === group).map((o) => (
                     <option key={o.id} value={o.id}>
                       {o.label}
-                      {o.id === HUMAN_OPENING_ID && tree && isEmptyTree(tree) ? ' — répertoire non généré' : ''}
+                      {o.id === HUMAN_OPENING_ID && repertoire && repertoire.meta.games === 0 ? ' — répertoire non généré' : ''}
                     </option>
                   ))}
+                  {group === 'Parties humaines' &&
+                    repertoire &&
+                    STRATEGIES.filter((st) => (repertoire.strategyCounts.get(st.id) ?? 0) >= MIN_STRATEGY_GAMES).map((st) => (
+                      <option key={st.id} value={`${HUMAN_OPENING_ID}:${st.id}`}>
+                        Répertoire — {st.label} ({repertoire.strategyCounts.get(st.id)} parties)
+                      </option>
+                    ))}
                 </optgroup>
               ))}
             </select>
             <p className="play-opening-hint">
-              {openingById(choice.openingId).description}
-              {choice.openingId !== 'free' &&
+              {humanStrategyOf(choice.openingId)
+                ? `L'ordinateur joue ${STRATEGIES.find((st) => st.id === humanStrategyOf(choice.openingId))?.label ?? 'cette stratégie'} comme les meilleurs joueurs de Lishogi : il suit les parties où ce camp l'a jouée, selon leur fréquence. Sorti du répertoire, le moteur reprend la main.`
+                : openingById(choice.openingId).description}
+              {!isHumanOpening(choice.openingId) &&
+                choice.openingId !== 'free' &&
                 " Il la joue tant qu'elle reste possible et que le moteur ne la juge pas mauvaise ; sinon il reprend son jeu normal."}
             </p>
           </fieldset>
@@ -620,10 +641,11 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
         </div>
 
         <div className="play-side">
-        {opening.id === HUMAN_OPENING_ID && tree && !isEmptyTree(tree) && moves.length < level.bookPlies && inTree(tree, moves) && (
+        {activeTree && !isEmptyTree(activeTree) && moves.length < level.bookPlies && inTree(activeTree, moves) && (
           <p className="play-book play-book-following" role="status">
-            Répertoire des parties humaines : la partie suit la théorie ({tree.meta.games.toLocaleString('fr-FR')} parties de
-            joueurs classés {tree.meta.minRating}+).
+            Répertoire des parties humaines{humanStrategyOf(opening.id) ? ` (${STRATEGIES.find((st) => st.id === humanStrategyOf(opening.id))?.label})` : ''} :
+            la partie suit la théorie ({activeTree.meta.games.toLocaleString('fr-FR')} parties de joueurs classés{' '}
+            {activeTree.meta.minRating}+).
           </p>
         )}
         {book && book.state !== 'done' && (
