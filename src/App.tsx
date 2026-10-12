@@ -7,6 +7,7 @@ import { KifuInput } from './components/KifuInput';
 import { MovetimeSlider } from './components/MovetimeSlider';
 import { MoveList } from './components/MoveList';
 import { PlayMode } from './components/PlayMode';
+import { OpeningTrainer } from './components/OpeningTrainer';
 import { TrainingMode } from './components/TrainingMode';
 import { TsumeMode } from './components/TsumeMode';
 import { StudyMode } from './components/StudyMode';
@@ -120,6 +121,8 @@ export default function App() {
   const [graphRevealed, setGraphRevealed] = useState(false);
   /** Partie contre l'ordinateur : elle prend la place de la saisie et de l'analyse. */
   const [playing, setPlaying] = useState(false);
+  // Ce que l'écran de jeu montre : une partie contre l'ordinateur, ou l'entraînement aux ouvertures.
+  const [playKind, setPlayKind] = useState<'game' | 'openings'>('game');
 
   useWakeLock();
 
@@ -634,6 +637,7 @@ export default function App() {
                   className="btn btn-ghost"
                   onClick={() => {
                     closeOptions();
+                    setPlayKind('game');
                     setPlaying(true);
                   }}
                   disabled={analyzing}
@@ -680,7 +684,11 @@ export default function App() {
 
       {error && <div className="banner banner-error">{error}</div>}
 
-      {playing && (
+      {playing && playKind === 'openings' && (
+        <OpeningTrainer ensureEngine={ensureEngine} onExit={() => setPlaying(false)} />
+      )}
+
+      {playing && playKind === 'game' && (
         <PlayMode
           ensureEngine={ensureEngine}
           onAnalyze={(played) => {
@@ -706,10 +714,23 @@ export default function App() {
         <div className="play-entry">
           <button
             className="btn btn-ghost"
-            onClick={() => setPlaying(true)}
+            onClick={() => {
+              setPlayKind('game');
+              setPlaying(true);
+            }}
             disabled={env.blocking}
           >
             ♟ Jouer contre l'ordinateur
+          </button>
+          <button
+            className="btn btn-ghost"
+            onClick={() => {
+              setPlayKind('openings');
+              setPlaying(true);
+            }}
+            disabled={env.blocking}
+          >
+            📖 Entraînement aux ouvertures
           </button>
         </div>
       )}

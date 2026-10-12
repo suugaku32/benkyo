@@ -11,12 +11,13 @@
     "preview": "vite preview",
     "test:movegen": "tsx test/movegen-vs-shogiops.ts",
     "test:parsers": "tsx test/parsers-vs-shogiops.ts",
-    "test": "npm run test:parsers && npm run test:movegen && npm run test:uchifuzume && npm run test:opponent && npm run test:book && npm run test:style && npm run test:tree",
+    "test": "npm run test:parsers && npm run test:movegen && npm run test:uchifuzume && npm run test:opponent && npm run test:book && npm run test:style && npm run test:tree && npm run test:repertoire",
     "test:uchifuzume": "tsx test/uchifuzume.ts",
     "test:opponent": "tsx test/opponent.ts",
     "test:book": "tsx test/book.ts",
     "test:style": "tsx test/style.ts",
     "test:tree": "tsx test/tree.ts",
+    "test:repertoire": "tsx test/repertoire.ts",
     "book:lishogi": "tsx scripts/build-opening-tree.ts"
   },
   "dependencies": {

@@ -1,13 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Board } from './Board';
-import type { DragSource } from './Board';
+import { useMoveInput } from './useMoveInput';
 import type { AnalyzeLine, UsiEngine } from '../engine/UsiEngine';
 import type { ParsedGame } from '../shogi/parser';
 import { HIRATE_SFEN, Position } from '../shogi/position';
 import { generateLegalMoves, isKingCapturable, moveToUsi } from '../shogi/moveGen';
 import { formatUsiMoveAsKif } from '../shogi/notation';
-import type { Color, Move, PieceType, Square } from '../shogi/types';
-import { otherColor, sameSquare, usiToSquare } from '../shogi/types';
+import type { Color, Square } from '../shogi/types';
+import { otherColor, usiToSquare } from '../shogi/types';
 import { scoreToCp } from '../analysis/classify';
 import {
   CUSTOM_LEVEL_ID,
@@ -149,10 +149,6 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
   const [resigned, setResigned] = useState<Color | null>(null);
   const [thinking, setThinking] = useState(false);
   const [engineError, setEngineError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<
-    { kind: 'square'; sq: Square } | { kind: 'hand'; type: PieceType } | null
-  >(null);
-  const [promptPromotion, setPromptPromotion] = useState<{ from: Square; to: Square } | null>(null);
   /** Invalide la réponse d'une recherche devenue sans objet (coup repris, partie recommencée). */
   const token = useRef(0);
 
@@ -215,8 +211,7 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
     setResigned(null);
     setThinking(false);
     setEngineError(null);
-    setSelected(null);
-    setPromptPromotion(null);
+    input.reset();
     setStarted(true);
   };
 
@@ -298,86 +293,13 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
     })();
   }, [started, outcome, thinking, position, humanColor, moves, level, style, opening, legalMoves, ensureEngine]);
 
-  const play = useCallback((usi: string) => {
-    setMoves((m) => [...m, usi]);
-    setSelected(null);
-  }, []);
-
-  const destinations = (): Square[] => {
-    if (!selected || !myTurn) return [];
-    if (selected.kind === 'hand') {
-      return legalMoves.filter((m) => !m.from && m.piece === selected.type).map((m) => m.to);
-    }
-    return legalMoves.filter((m) => m.from && sameSquare(m.from, selected.sq)).map((m) => m.to);
-  };
-
-  const tryMove = (to: Square, source: NonNullable<typeof selected> | null = selected) => {
-    if (!source || !myTurn) return;
-    const from = source;
-    const candidates: Move[] = legalMoves.filter((m) => {
-      if (!sameSquare(m.to, to)) return false;
-      if (from.kind === 'hand') return !m.from && m.piece === from.type;
-      return m.from != null && sameSquare(m.from, from.sq);
-    });
-    setSelected(null);
-    if (candidates.length === 0) return;
-    const promoting = candidates.filter((m) => m.promote);
-    const plain = candidates.filter((m) => !m.promote);
-    if (promoting.length > 0 && plain.length > 0) {
-      setPromptPromotion({ from: plain[0].from!, to });
-      return;
-    }
-    play(moveToUsi(candidates[0]));
-  };
-
-  const onSquareClick = (sq: Square) => {
-    if (!myTurn || promptPromotion) return;
-    if (selected?.kind === 'square' && sameSquare(selected.sq, sq)) {
-      setSelected(null);
-      return;
-    }
-    const piece = position.pieceAt(sq);
-    if (piece && piece.color === humanColor) {
-      setSelected({ kind: 'square', sq });
-      return;
-    }
-    if (selected) tryMove(sq);
-  };
-
-  /*
-   * Glissé-déposé : même règle que le tap en deux temps, mais d'un geste. La
-   * pièce est sélectionnée dès que le doigt bouge (les cases possibles
-   * s'allument), puis le coup se joue là où on la lâche — sur une case
-   * impossible, il ne se passe rien et la sélection est levée.
-   */
-  const onDragStart = (src: DragSource) => {
-    if (!myTurn || promptPromotion) return;
-    setSelected(src);
-  };
-
-  const onDragEnd = (src: DragSource, to: Square) => {
-    if (!myTurn || promptPromotion) return;
-    if (src.kind === 'square' && sameSquare(src.sq, to)) {
-      setSelected(null);
-      return;
-    }
-    tryMove(to, src);
-  };
-
-  const onHandPieceClick = (type: PieceType) => {
-    if (!myTurn || promptPromotion) return;
-    setSelected((s) => (s?.kind === 'hand' && s.type === type ? null : { kind: 'hand', type }));
-  };
-
-  const resolvePromotion = (promote: boolean) => {
-    if (!promptPromotion) return;
-    const { from, to } = promptPromotion;
-    setPromptPromotion(null);
-    const move = legalMoves.find(
-      (m) => m.from && sameSquare(m.from, from) && sameSquare(m.to, to) && m.promote === promote,
-    );
-    if (move) play(moveToUsi(move));
-  };
+  const input = useMoveInput({
+    position,
+    legalMoves,
+    humanColor,
+    enabled: myTurn,
+    onPlay: (usi) => setMoves((m) => [...m, usi]),
+  });
 
   /*
    * Reprendre son coup, c'est aussi reprendre la réponse de l'ordinateur : on
@@ -393,8 +315,7 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
     setThinking(false);
     setEngineError(null);
     setResigned(null);
-    setSelected(null);
-    setPromptPromotion(null);
+    input.reset();
     setMoves((m) => m.slice(0, m.length - undoCount));
   };
 
@@ -657,24 +578,24 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
             position={position}
             lastMove={lastMove}
             interactive={myTurn}
-            selected={selected}
-            legalDestinations={destinations()}
+            selected={input.selected}
+            legalDestinations={input.destinations}
             handSide={humanColor}
             flipped={humanColor === 'w'}
             blackName={names.black}
             whiteName={names.white}
-            onSquareClick={onSquareClick}
-            onHandPieceClick={onHandPieceClick}
-            onDragStart={onDragStart}
-            onDragEnd={onDragEnd}
+            onSquareClick={input.onSquareClick}
+            onHandPieceClick={input.onHandPieceClick}
+            onDragStart={input.onDragStart}
+            onDragEnd={input.onDragEnd}
           />
-          {promptPromotion && (
+          {input.promptPromotion && (
             <div className="promo-prompt">
               <span>Promouvoir ?</span>
-              <button className="btn btn-primary" onClick={() => resolvePromotion(true)}>
+              <button className="btn btn-primary" onClick={() => input.resolvePromotion(true)}>
                 成 Oui
               </button>
-              <button className="btn btn-ghost" onClick={() => resolvePromotion(false)}>
+              <button className="btn btn-ghost" onClick={() => input.resolvePromotion(false)}>
                 Non
               </button>
             </div>
