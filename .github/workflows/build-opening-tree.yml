@@ -52,6 +52,8 @@ jobs:
             exit 0
           fi
           git commit -m "Livre de parties humaines (Lishogi) : régénéré"
+          # La branche a pu avancer pendant le téléchargement (il dure un quart d'heure).
+          git pull --rebase origin "${{ github.ref_name }}"
           git push
       # Une poussée faite avec GITHUB_TOKEN ne déclenche pas les autres workflows :
       # on relance donc le déploiement nous-mêmes.
