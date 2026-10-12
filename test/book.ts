@@ -95,7 +95,7 @@ console.log('=== Avancement dans le plan ===');
   );
   check('Gote suit le plan retourné', nextBookMove(sanken, 'w', ['2g2f']) === '3c3d');
   check('jeu libre : jamais de coup', nextBookMove(openingById('free'), 'b', []) === null);
-  check('identifiant inconnu : jeu libre', openingById('???').id === 'free');
+  check('identifiant inconnu : l’ouverture sans plan fixe (répertoire)', openingById('???').plan.length === 0);
 }
 
 console.log('=== Indicateur d\'ouverture ===');
