@@ -54,6 +54,20 @@ interface Choice {
   openingId: string;
   styleId: string;
   custom: CustomSettings;
+  /** Posé une fois le répertoire devenu le choix par défaut : un « Libre » enregistré ensuite est un vrai choix. */
+  bookDefault?: boolean;
+}
+
+/**
+ * L'ouverture enregistrée. Avant le répertoire, « Libre » était le choix par
+ * défaut : on ne peut pas savoir si c'était voulu, donc un « Libre » enregistré
+ * sans le drapeau `bookDefault` bascule une fois sur le répertoire.
+ */
+function chosenOpening(raw: Partial<Choice> | null): string {
+  const saved = raw?.openingId;
+  if (!saved) return DEFAULT_OPENING_ID;
+  if (!raw?.bookDefault && saved === 'free') return DEFAULT_OPENING_ID;
+  return saved;
 }
 
 function loadChoice(): Choice {
@@ -64,9 +78,10 @@ function loadChoice(): Choice {
       side,
       levelId:
         raw?.levelId === CUSTOM_LEVEL_ID ? CUSTOM_LEVEL_ID : levelById(raw?.levelId ?? DEFAULT_LEVEL_ID).id,
-      openingId: openingById(raw?.openingId ?? DEFAULT_OPENING_ID).id,
+      openingId: openingById(chosenOpening(raw)).id,
       styleId: styleById(raw?.styleId).id,
       custom: sanitizeCustom(raw?.custom),
+      bookDefault: true,
     };
   } catch {
     return {
@@ -75,6 +90,7 @@ function loadChoice(): Choice {
       openingId: DEFAULT_OPENING_ID,
       styleId: DEFAULT_STYLE_ID,
       custom: DEFAULT_CUSTOM,
+      bookDefault: true,
     };
   }
 }
@@ -106,9 +122,10 @@ function describeLevel(choice: Choice): string {
       ? ', toujours le meilleur coup'
       : `, meilleur coup ${Math.round(level.pBest * 100)} % du temps, sinon un coup à moins de ${level.maxLossCp} cp`
   }.`;
-  if (level.id === CUSTOM_LEVEL_ID) return `${settings} Plafond de ${MOVE_CAP_MS / 1000} s par coup.`;
+  const theory = ` Suit le répertoire des parties humaines sur ${level.bookPlies} demi-coups.`;
+  if (level.id === CUSTOM_LEVEL_ID) return `${settings} Plafond de ${MOVE_CAP_MS / 1000} s par coup.${theory}`;
   const rank = LEVELS.findIndex((l) => l.id === level.id) + 1;
-  return `Niveau ${rank} sur ${LEVELS.length} — ${level.description} ${settings}`;
+  return `Niveau ${rank} sur ${LEVELS.length} — ${level.description} ${settings}${theory}`;
 }
 
 interface PlayModeProps {
@@ -241,7 +258,7 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
         const planned = nextBookMove(opening, position.turn, moves);
         const candidates = planned
           ? [planned]
-          : opening.id === HUMAN_OPENING_ID
+          : opening.id === HUMAN_OPENING_ID && moves.length < level.bookPlies
             ? pickTreeMoves(await loadTree(), moves, position.turn)
             : [];
         const bookSearch = { depth: BOOK_CHECK_DEPTH, movetimeMs: MOVE_CAP_MS };
@@ -487,7 +504,7 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
                   {OPENINGS.filter((o) => o.group === group).map((o) => (
                     <option key={o.id} value={o.id}>
                       {o.label}
-                      {o.id === HUMAN_OPENING_ID && tree && isEmptyTree(tree) ? ' — livre non généré' : ''}
+                      {o.id === HUMAN_OPENING_ID && tree && isEmptyTree(tree) ? ' — répertoire non généré' : ''}
                     </option>
                   ))}
                 </optgroup>
@@ -603,9 +620,9 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
         </div>
 
         <div className="play-side">
-        {opening.id === HUMAN_OPENING_ID && tree && !isEmptyTree(tree) && inTree(tree, moves) && (
+        {opening.id === HUMAN_OPENING_ID && tree && !isEmptyTree(tree) && moves.length < level.bookPlies && inTree(tree, moves) && (
           <p className="play-book play-book-following" role="status">
-            Livre de parties humaines : la partie suit la théorie ({tree.meta.games.toLocaleString('fr-FR')} parties de
+            Répertoire des parties humaines : la partie suit la théorie ({tree.meta.games.toLocaleString('fr-FR')} parties de
             joueurs classés {tree.meta.minRating}+).
           </p>
         )}

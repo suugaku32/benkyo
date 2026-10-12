@@ -28,18 +28,18 @@ export interface Opening {
 
 export const OPENINGS: readonly Opening[] = [
   {
-    id: 'free',
-    group: 'Libre',
-    label: 'Libre',
-    description: 'Le moteur choisit son ouverture.',
+    id: HUMAN_OPENING_ID,
+    group: 'Parties humaines',
+    label: 'Répertoire des parties humaines (Lishogi)',
+    description:
+      "L'ordinateur joue les coups des meilleurs joueurs de Lishogi, selon leur fréquence, tant que la position est connue du répertoire. Plus son niveau est bas, moins il connaît la théorie.",
     plan: [],
   },
   {
-    id: HUMAN_OPENING_ID,
-    group: 'Parties humaines',
-    label: 'Livre de parties humaines (Lishogi)',
-    description:
-      "L'ordinateur joue les coups les plus fréquents des meilleurs joueurs de Lishogi, tant que la position est connue du livre.",
+    id: 'free',
+    group: 'Libre',
+    label: 'Libre (moteur seul)',
+    description: 'Le moteur choisit son ouverture, sans livre.',
     plan: [],
   },
   {
@@ -121,7 +121,8 @@ export const OPENINGS: readonly Opening[] = [
   },
 ];
 
-export const DEFAULT_OPENING_ID = 'free';
+/** Par défaut l'ordinateur suit le livre de parties humaines ; sans livre généré, il joue librement. */
+export const DEFAULT_OPENING_ID = HUMAN_OPENING_ID;
 
 export function openingById(id: string): Opening {
   return OPENINGS.find((o) => o.id === id) ?? OPENINGS[0];

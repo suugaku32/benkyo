@@ -25,6 +25,11 @@ export interface Level {
   pBest: number;
   maxLossCp: number;
   multiPv: number;
+  /**
+   * Combien de demi-coups il suit le livre de parties humaines (voir `tree.ts`) :
+   * un joueur faible ne connaît pas la théorie aussi loin qu'un fort.
+   */
+  bookPlies: number;
 }
 
 /**
@@ -48,7 +53,7 @@ export const MOVE_CAP_MS = 10000;
  * Ces niveaux sont ordonnés, pas étalonnés : je ne les ai pas mesurés contre des
  * joueurs. Ajuster un niveau, c'est changer une ligne ci-dessous.
  */
-const ANCHORS: readonly Omit<Level, 'id'>[] = [
+const ANCHORS: readonly Omit<Level, 'id' | 'bookPlies'>[] = [
   { label: 'Débutant complet', description: 'Joue presque au hasard parmi des coups parfois franchement mauvais.', nodes: 10, pBest: 0.1, maxLossCp: 700, multiPv: 8 },
   { label: 'Débutant', description: 'Connaît les règles, laisse souvent des pièces en prise.', nodes: 30, pBest: 0.15, maxLossCp: 550, multiPv: 8 },
   { label: 'Novice', description: 'Voit les prises immédiates, mais pas plus loin.', nodes: 100, pBest: 0.2, maxLossCp: 400, multiPv: 7 },
@@ -64,6 +69,10 @@ const ANCHORS: readonly Omit<Level, 'id'>[] = [
 ];
 
 export const LEVEL_COUNT = 30;
+
+/** Profondeur du livre de parties humaines (demi-coups) : 4 au premier niveau, 24 au dernier. */
+export const BOOK_PLIES_MIN = 4;
+export const BOOK_PLIES_MAX = 24;
 
 const ROMAN = ['', ' II', ' III', ' IV', ' V'];
 
@@ -101,6 +110,7 @@ function buildLevels(): Level[] {
       pBest,
       maxLossCp,
       multiPv: pBest >= 1 ? 1 : Math.max(2, Math.round(mix(lo.multiPv, hi.multiPv))),
+      bookPlies: Math.round(BOOK_PLIES_MIN + ((BOOK_PLIES_MAX - BOOK_PLIES_MIN) * i) / (LEVEL_COUNT - 1)),
     };
   });
 }
@@ -174,6 +184,7 @@ export function resolveLevel(levelId: string, custom: CustomSettings): Level {
     maxLossCp: c.maxLossCp,
     // Sans alternatives à regarder, l'écart ne sert à rien : une seule ligne suffit au meilleur coup.
     multiPv: c.pBest >= 1 ? 1 : 6,
+    bookPlies: BOOK_PLIES_MAX,
   };
 }
 

@@ -129,6 +129,10 @@ console.log('=== Le barème ===');
     'niveaux espacés d’environ ×1,5 (jamais plus de ×2)',
     LEVELS.every((l, i) => i === 0 || (l.nodes / LEVELS[i - 1].nodes <= 2 && l.nodes / LEVELS[i - 1].nodes >= 1.3)),
   );
+  check(
+    'profondeur du répertoire : de 4 à 24 demi-coups, croissante',
+    LEVELS[0].bookPlies === 4 && LEVELS[LEVELS.length - 1].bookPlies === 24 && LEVELS.every((l, i) => i === 0 || l.bookPlies >= LEVELS[i - 1].bookPlies),
+  );
   check('étiquettes uniques', new Set(LEVELS.map((l) => l.label)).size === LEVELS.length);
   check('chaque palier a de quoi trouver des alternatives sauf le meilleur coup assuré', LEVELS.every((l) => (l.pBest >= 1 ? true : l.multiPv >= 2)));
   check(
