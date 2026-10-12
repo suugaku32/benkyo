@@ -13,10 +13,13 @@ import type { Color } from '../shogi/types';
  * Les plans sont écrits du point de vue de Sente ; pour Gote ils sont retournés
  * d'un demi-tour (voir `mirror`).
  */
+/** L'ouverture qui suit le livre de parties humaines plutôt qu'un plan fixe (voir `tree.ts`). */
+export const HUMAN_OPENING_ID = 'human';
+
 export interface Opening {
   id: string;
   /** Famille, pour regrouper la liste de choix. */
-  group: 'Libre' | 'Rook en place (居飛車)' | 'Rook mobile (振り飛車)' | 'Autres';
+  group: 'Libre' | 'Parties humaines' | 'Rook en place (居飛車)' | 'Rook mobile (振り飛車)' | 'Autres';
   label: string;
   description: string;
   /** Les coups de l'ordinateur, dans l'ordre, en coordonnées de Sente. Vide : jeu libre. */
@@ -29,6 +32,14 @@ export const OPENINGS: readonly Opening[] = [
     group: 'Libre',
     label: 'Libre',
     description: 'Le moteur choisit son ouverture.',
+    plan: [],
+  },
+  {
+    id: HUMAN_OPENING_ID,
+    group: 'Parties humaines',
+    label: 'Livre de parties humaines (Lishogi)',
+    description:
+      "L'ordinateur joue les coups les plus fréquents des meilleurs joueurs de Lishogi, tant que la position est connue du livre.",
     plan: [],
   },
   {

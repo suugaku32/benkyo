@@ -1,0 +1,61 @@
+name: Build opening tree
+
+# Régénère src/play/openingTree.json (le livre « parties humaines ») à partir de
+# l'API publique de Lishogi, puis relance le déploiement. À lancer à la main :
+# Actions → Build opening tree → Run workflow.
+
+on:
+  workflow_dispatch:
+    inputs:
+      players:
+        description: "Joueurs du classement dont on télécharge les parties"
+        default: "40"
+      games:
+        description: "Parties par joueur"
+        default: "300"
+      min_rating:
+        description: "Classement minimal des deux joueurs"
+        default: "1900"
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: opening-tree
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Télécharger les parties et construire le livre
+        env:
+          LISHOGI_PLAYERS: ${{ inputs.players }}
+          LISHOGI_GAMES: ${{ inputs.games }}
+          LISHOGI_MIN_RATING: ${{ inputs.min_rating }}
+        run: npm run book:lishogi
+      - name: Enregistrer le livre
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/play/openingTree.json
+          if git diff --cached --quiet; then
+            echo "Le livre n'a pas changé."
+            exit 0
+          fi
+          git commit -m "Livre de parties humaines (Lishogi) : régénéré"
+          git push
+      # Une poussée faite avec GITHUB_TOKEN ne déclenche pas les autres workflows :
+      # on relance donc le déploiement nous-mêmes.
+      - name: Relancer le déploiement
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy.yml --ref "${{ github.ref_name }}"

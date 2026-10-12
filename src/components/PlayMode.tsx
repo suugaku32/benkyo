@@ -24,11 +24,14 @@ import {
   sanitizeCustom,
 } from '../play/opponent';
 import type { CustomSettings, Level } from '../play/opponent';
+import { inTree, isEmptyTree, loadTree, pickTreeMoves } from '../play/tree';
+import type { OpeningTree } from '../play/tree';
 import { DEFAULT_STYLE_ID, STYLES, preferredMove, styleById } from '../play/style';
 import type { Style } from '../play/style';
 import {
   DEFAULT_OPENING_ID,
   OPENINGS,
+  HUMAN_OPENING_ID,
   bookStatus,
   isBookMoveSafe,
   matchPlan,
@@ -132,6 +135,15 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
   const [humanColor, setHumanColor] = useState<Color>('b');
   const [level, setLevel] = useState<Level>(() => levelById(DEFAULT_LEVEL_ID));
   const [style, setStyle] = useState<Style>(() => styleById(DEFAULT_STYLE_ID));
+  // Le livre de parties humaines : chargé une fois, en tâche de fond (il peut peser plusieurs Mo).
+  const [tree, setTree] = useState<OpeningTree | null>(null);
+  useEffect(() => {
+    let alive = true;
+    loadTree().then((t) => alive && setTree(t), () => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
   const [openingId, setOpeningId] = useState(DEFAULT_OPENING_ID);
   const [moves, setMoves] = useState<string[]>([]);
   const [resigned, setResigned] = useState<Color | null>(null);
@@ -229,18 +241,29 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
          * assez profonde et à plusieurs lignes quel que soit le niveau, car un
          * Débutant à profondeur 1 ne verrait pas qu'il laisse une pièce en prise.
          */
+        // Les coups que le livre propose, dans l'ordre où on les essaie : le plan fixe de
+        // l'ouverture choisie, ou des tirages dans le livre de parties humaines.
         const planned = nextBookMove(opening, position.turn, moves);
-        if (planned && legal.includes(planned)) {
-          const bookSearch = { depth: BOOK_CHECK_DEPTH, movetimeMs: MOVE_CAP_MS };
-          const best = await engine.analyze(HIRATE_SFEN, moves, bookSearch);
-          // La position d'après le coup du plan : son score est celui de
-          // l'adversaire, donc retourné pour être du point de vue de qui joue.
-          const after = await engine.analyze(HIRATE_SFEN, [...moves, planned], bookSearch);
+        const candidates = planned
+          ? [planned]
+          : opening.id === HUMAN_OPENING_ID
+            ? pickTreeMoves(await loadTree(), moves, position.turn)
+            : [];
+        const bookSearch = { depth: BOOK_CHECK_DEPTH, movetimeMs: MOVE_CAP_MS };
+        let bestCp: number | null = null;
+        for (const candidate of candidates) {
+          if (!legal.includes(candidate)) continue;
+          if (bestCp === null) {
+            const best = await engine.analyze(HIRATE_SFEN, moves, bookSearch);
+            if (mine !== token.current) return;
+            bestCp = scoreToCp(best.scoreCp, best.scoreMate);
+          }
+          // La position d'après le coup : son score est celui de l'adversaire,
+          // donc retourné pour être du point de vue de qui joue.
+          const after = await engine.analyze(HIRATE_SFEN, [...moves, candidate], bookSearch);
           if (mine !== token.current) return;
-          const bestCp = scoreToCp(best.scoreCp, best.scoreMate);
-          const plannedCp = -scoreToCp(after.scoreCp, after.scoreMate);
-          if (isBookMoveSafe(bestCp, plannedCp)) {
-            setMoves((m) => [...m, planned]);
+          if (isBookMoveSafe(bestCp, -scoreToCp(after.scoreCp, after.scoreMate))) {
+            setMoves((m) => [...m, candidate]);
             return;
           }
         }
@@ -543,6 +566,7 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
                   {OPENINGS.filter((o) => o.group === group).map((o) => (
                     <option key={o.id} value={o.id}>
                       {o.label}
+                      {o.id === HUMAN_OPENING_ID && tree && isEmptyTree(tree) ? ' — livre non généré' : ''}
                     </option>
                   ))}
                 </optgroup>
@@ -658,6 +682,12 @@ export function PlayMode({ ensureEngine, onAnalyze, onExit }: PlayModeProps) {
         </div>
 
         <div className="play-side">
+        {opening.id === HUMAN_OPENING_ID && tree && !isEmptyTree(tree) && inTree(tree, moves) && (
+          <p className="play-book play-book-following" role="status">
+            Livre de parties humaines : la partie suit la théorie ({tree.meta.games.toLocaleString('fr-FR')} parties de
+            joueurs classés {tree.meta.minRating}+).
+          </p>
+        )}
         {book && book.state !== 'done' && (
           <p className={`play-book play-book-${book.state}`} role="status">
             {book.state === 'following' &&
