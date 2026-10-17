@@ -409,3 +409,9 @@
 .board-wrap {
   -webkit-touch-callout: none;
 }
+
+/* Case à vérifier : contour pointillé, qui ne cache ni la pièce ni les autres surlignages. */
+.cell.mark {
+  outline: 2px dashed var(--status-mistake);
+  outline-offset: -3px;
+}

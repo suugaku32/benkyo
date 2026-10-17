@@ -8,12 +8,14 @@
       Tout est servi depuis l'origine du site : aucune requête réseau sortante,
       aucun CDN. 'wasm-unsafe-eval' est requis pour instancier le moteur WASM ;
       'unsafe-inline' en style- car les composants posent des styles inline.
+      img-src accepte blob: : l'image choisie pour « position depuis une image »
+      est affichée par une URL locale du navigateur, jamais envoyée ailleurs.
       Pas de frame-ancestors : cette directive n'existe qu'en en-tête HTTP, que
       GitHub Pages ne permet pas de définir.
     -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"
+      content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"
     />
     <meta
       name="description"

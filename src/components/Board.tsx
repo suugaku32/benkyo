@@ -39,6 +39,8 @@ export interface BoardProps {
   selected?: { kind: 'square'; sq: Square } | { kind: 'hand'; type: PieceType } | null;
   legalDestinations?: Square[];
   errorSquare?: Square | null;
+  /** Cases à faire remarquer (contour pointillé) : par exemple une lecture d'image peu sûre. */
+  markSquares?: Square[];
   /** Which side's hand accepts clicks when interactive. */
   handSide?: Color;
   /** Gote at the bottom instead of Sente — pieces, hands and coordinates turn with it. */
@@ -82,6 +84,7 @@ export function Board({
   selected,
   legalDestinations,
   errorSquare,
+  markSquares,
   handSide = 'b',
   flipped = false,
   arrows,
@@ -256,6 +259,7 @@ export function Board({
         if (selected?.kind === 'square' && sameSquare(selected.sq, sq)) classes.push('sel');
         if (errorSquare && sameSquare(errorSquare, sq)) classes.push('err');
         if (isLegalDest(sq)) classes.push('hint');
+        if (markSquares?.some((m) => sameSquare(m, sq))) classes.push('mark');
         if (drag?.over && sameSquare(drag.over, sq)) classes.push('drag-over');
         // A piece faces away from whoever sits at the bottom of the board.
         const upsideDown = piece ? (piece.color === 'w') !== flipped : false;

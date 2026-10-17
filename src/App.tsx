@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ExploreBoard, ExploreSettings } from './components/ExploreBoard';
 import type { ExploreBoardHandle } from './components/ExploreBoard';
 import type { BoardArrow } from './components/Board';
@@ -28,7 +28,7 @@ import type { AnalysisPhase, AnalysisResult } from './analysis/analyze';
 import { QUALITY_LABEL_FR } from './analysis/classify';
 import { parseKifu } from './shogi/parser';
 import type { ParsedGame } from './shogi/parser';
-import { Position } from './shogi/position';
+import { HIRATE_SFEN, Position } from './shogi/position';
 import { formatUsiMoveAsKif } from './shogi/notation';
 import type { PieceType, Square } from './shogi/types';
 import { usiToSquare } from './shogi/types';
@@ -47,6 +47,9 @@ type Phase =
   | { kind: 'analyzing'; step: AnalysisPhase; done: number; total: number }
   | { kind: 'done' };
 
+// Chargé à la demande : la lecture d'image embarque Tesseract.js, inutile tant qu'on ne s'en sert pas.
+const ImagePosition = lazy(() => import('./components/ImagePosition').then((m) => ({ default: m.ImagePosition })));
+
 const PHASE_LABEL: Record<AnalysisPhase, string> = {
   scan: 'Balayage de la partie',
   tsume: 'Vérification des mats',
@@ -54,6 +57,8 @@ const PHASE_LABEL: Record<AnalysisPhase, string> = {
 
 export default function App() {
   const [kifuText, setKifuText] = useState('');
+  // Une image de plateau à lire (collée, déposée ou choisie), qui ouvre la lecture de position.
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [initialSettings] = useState(loadSettings);
   const [movetimeMs, setMovetimeMs] = useState(initialSettings.movetimeMs);
   const [phase, setPhase] = useState<Phase>({ kind: 'input' });
@@ -282,7 +287,8 @@ export default function App() {
         setPhase({ kind: 'done' });
         // Quelqu'un qui s'entraîne déjà n'a pas à être interrompu en plein
         // exercice : le joueur suivi se choisit aussi en cliquant son nom.
-        setAskFocus(tabRef.current === 'analysis');
+        // Une position seule n'a pas de joueur à suivre.
+        setAskFocus(tabRef.current === 'analysis' && parsed.moves.length > 0);
         // Une analyse coûte des dizaines de secondes : la conserver évite de la
         // refaire pour revoir une partie.
         const saved = saveGame(parsed, res, movetimeMs);
@@ -308,12 +314,30 @@ export default function App() {
       setError(`Lecture du kifu impossible : ${(e as Error).message}`);
       return;
     }
-    if (parsed.moves.length === 0) {
+    // Sans coup, il n'y a rien à analyser — sauf une position de départ donnée (« position sfen … »), qu'on explore.
+    if (parsed.moves.length === 0 && parsed.startSfen.split(' ')[0] === HIRATE_SFEN.split(' ')[0]) {
       setError("Aucun coup n'a pu être lu dans ce kifu.");
       return;
     }
     await analyseParsedGame(parsed);
   }, [kifuText, analyseParsedGame]);
+
+  /*
+   * Coller une image (Ctrl+V, ou « coller » sur mobile) depuis l'écran de saisie ouvre la
+   * lecture de position. Seules les images sont prises : un texte collé dans la zone
+   * de kifu garde son comportement habituel.
+   */
+  useEffect(() => {
+    if (showAnalysis || playing || imageFile) return;
+    const onPaste = (e: ClipboardEvent) => {
+      const file = [...(e.clipboardData?.files ?? [])].find((f) => f.type.startsWith('image/'));
+      if (!file) return;
+      e.preventDefault();
+      setImageFile(file);
+    };
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+  }, [showAnalysis, playing, imageFile]);
 
   /*
    * Rejouer l'analyse sur la partie déjà à l'écran, à la cadence courante.
@@ -707,7 +731,27 @@ export default function App() {
           movetimeMs={movetimeMs}
           onMovetimeChange={changeMovetime}
           disabled={phase.kind === 'analyzing' || env.blocking}
+          onImage={setImageFile}
         />
+      )}
+
+      {imageFile && (
+        <Suspense fallback={null}>
+        <ImagePosition
+          file={imageFile}
+          onClose={() => setImageFile(null)}
+          onUse={(sfen) => {
+            setImageFile(null);
+            const text = `position sfen ${sfen}`;
+            setKifuText(text);
+            try {
+              void analyseParsedGame(parseKifu(text));
+            } catch (e) {
+              setError(`Position illisible : ${(e as Error).message}`);
+            }
+          }}
+        />
+        </Suspense>
       )}
 
       {phase.kind === 'input' && !playing && (
@@ -1148,6 +1192,17 @@ export default function App() {
               </a>{' '}
               de Guido Zuidhof — pose les en-têtes COOP/COEP que GitHub Pages ne permet pas de
               configurer, sans lesquels le moteur ne peut pas utiliser plusieurs fils. MIT.
+            </li>
+            <li>
+              <a href="https://github.com/naptha/tesseract.js" target="_blank" rel="noreferrer">
+                Tesseract.js
+              </a>{' '}
+              et son modèle japonais (
+              <a href="https://github.com/tesseract-ocr/tessdata_best" target="_blank" rel="noreferrer">
+                tessdata_best
+              </a>
+              ) — lecture des positions sur une image, entièrement dans le navigateur. Apache-2.0. Fichiers et
+              empreintes dans <code>public/ocr/</code>.
             </li>
             <li>
               <a href="https://lishogi.org" target="_blank" rel="noreferrer">

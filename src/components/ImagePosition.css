@@ -1,0 +1,203 @@
+.ip-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: var(--bg);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.ip-panel {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 14px 16px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ip-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ip-head h2 {
+  font-size: 17px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.ip-hint {
+  font-size: 13px;
+  color: var(--dim);
+  line-height: 1.45;
+  margin: 0;
+}
+
+/* L'image et son cadre : le cadre est positionné en pourcentages de l'image, donc suit son échelle. */
+.ip-stage {
+  position: relative;
+  align-self: center;
+  max-width: 100%;
+  line-height: 0;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.ip-stage img {
+  display: block;
+  max-width: 100%;
+  max-height: 62vh;
+  -webkit-touch-callout: none;
+}
+
+.ip-crop {
+  position: absolute;
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45);
+  cursor: move;
+  /* La grille 9×9 en transparence : de quoi vérifier que les traits coïncident. */
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.45) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.45) 1px, transparent 1px);
+  background-size: calc(100% / 9) calc(100% / 9);
+}
+
+.ip-handle {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  background: var(--accent);
+  border: 2px solid #fff;
+  border-radius: 50%;
+}
+
+.ip-handle-tl { left: -14px; top: -14px; cursor: nwse-resize; }
+.ip-handle-tr { right: -14px; top: -14px; cursor: nesw-resize; }
+.ip-handle-bl { left: -14px; bottom: -14px; cursor: nesw-resize; }
+.ip-handle-br { right: -14px; bottom: -14px; cursor: nwse-resize; }
+
+.ip-check {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 13px;
+}
+
+.ip-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ip-reading {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 20px 0;
+}
+
+.ip-reading progress {
+  width: min(420px, 100%);
+}
+
+.ip-review {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.ip-board {
+  flex: 1 1 360px;
+  min-width: 0;
+  max-width: 560px;
+}
+
+.ip-controls {
+  flex: 1 1 320px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ip-field {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 12px 10px;
+  margin: 0;
+  min-width: 0;
+}
+
+.ip-field legend {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 0 6px;
+}
+
+.ip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.ip-palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.ip-piece {
+  font-family: var(--piece-font);
+  font-size: 20px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+}
+
+.ip-hand {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-bottom: 6px;
+}
+
+.ip-hand-side {
+  width: 1.4em;
+  font-weight: 700;
+}
+
+.ip-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.ip-stepper .btn {
+  min-width: 28px;
+  min-height: 32px;
+  padding: 0;
+}
+
+.ip-count {
+  min-width: 2.4em;
+  text-align: center;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ip-warnings {
+  margin: 0;
+  padding: 8px 12px 8px 28px;
+  font-size: 13px;
+  color: var(--status-mistake);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { parseKifu } from '../shogi/parser';
 import { MovetimeSlider } from './MovetimeSlider';
 import './KifuInput.css';
@@ -10,6 +10,8 @@ interface KifuInputProps {
   movetimeMs: number;
   onMovetimeChange: (ms: number) => void;
   disabled?: boolean;
+  /** Une image à lire (collée, déposée ou choisie) : une capture d'écran de plateau. */
+  onImage?: (file: File) => void;
 }
 
 export function KifuInput({
@@ -19,8 +21,10 @@ export function KifuInput({
   movetimeMs,
   onMovetimeChange,
   disabled,
+  onImage,
 }: KifuInputProps) {
   const [showHelp, setShowHelp] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
 
   /*
    * Combien de temps ça va prendre. La question se pose depuis que le balayage
@@ -61,6 +65,30 @@ export function KifuInput({
           positions={positions}
           disabled={disabled}
         />
+        {onImage && (
+          <>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => fileInput.current?.click()}
+              disabled={disabled}
+              title="Lire une position sur une capture d'écran (vous pouvez aussi coller l'image avec Ctrl+V)"
+            >
+              📷 Position depuis une image
+            </button>
+            <input
+              ref={fileInput}
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = '';
+                if (file) onImage(file);
+              }}
+            />
+          </>
+        )}
         <button type="button" className="btn btn-link" onClick={() => setShowHelp((v) => !v)}>
           {showHelp ? 'Masquer les formats' : 'Formats acceptés ?'}
         </button>
