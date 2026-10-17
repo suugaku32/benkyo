@@ -2,8 +2,11 @@ import { createWorker } from 'tesseract.js';
 import type { Worker } from 'tesseract.js';
 import { GLYPHS } from './glyphs';
 import type { Glyph } from './glyphs';
-import { EMPTY_INK_RATIO, cellRect, glyphCanvas, inkMask, toGray } from './image';
-import type { Rect } from './image';
+import { HAND_CHARS, countBars, parseTokens, segmentHand, tokenOf, withoutFrames } from './hands';
+import type { Token } from './hands';
+import { EMPTY_INK_RATIO, cellRect, glyphCanvas, inkMask, maskCanvas, minorityMask, toGray } from './image';
+import type { Gray, Rect } from './image';
+import type { Hand } from '../shogi/types';
 
 /** Une case lue : vide, ou une pièce avec le sens dans lequel elle a été lue et la confiance de la lecture (0 à 100). */
 export type CellReading =
@@ -62,13 +65,17 @@ const PAGE_MODES = ['10', '8'] as const;
 /** Les modes de secours, quand aucun des deux premiers n'a donné une pièce : 7 (une ligne), 13 (ligne brute). */
 const FALLBACK_MODES = ['7', '13'] as const;
 
-async function readOnce(worker: Worker, canvas: HTMLCanvasElement): Promise<{ char: string; confidence: number }> {
+async function readOnce(
+  worker: Worker,
+  canvas: HTMLCanvasElement,
+  allowed?: string,
+): Promise<{ char: string; confidence: number }> {
   let best = { char: '', confidence: 0 };
   for (const modes of [PAGE_MODES, FALLBACK_MODES]) {
     for (const mode of modes) {
       await worker.setParameters({ tessedit_pageseg_mode: mode as never });
       const { data } = await worker.recognize(canvas);
-      const char = [...data.text.replace(/\s+/g, '')].find((c) => c in GLYPHS) ?? '';
+      const char = [...data.text.replace(/\s+/g, '')].find((c) => (allowed ? allowed.includes(c) : c in GLYPHS)) ?? '';
       if (char && data.confidence > best.confidence) best = { char, confidence: data.confidence };
     }
     if (best.char) break;
@@ -106,4 +113,85 @@ export async function readCell(source: CanvasImageSource, board: Rect, col: numb
   const best = upsideDown ? down : up;
   if (!best.char) return { kind: 'piece', glyph: { type: 'P', promoted: false }, char: '?', upsideDown, confidence: 0 };
   return { kind: 'piece', glyph: GLYPHS[best.char], char: best.char, upsideDown, confidence: best.confidence };
+}
+
+/** Les pièces en main lues dans une zone, avec ce qui a été lu (pour vérification) et la confiance d'ensemble. */
+export interface HandReading {
+  hand: Hand;
+  tokens: Token[];
+  /** Vrai si la zone a été lue retournée d'un demi-tour (pièces du camp d'en face, en haut de l'image). */
+  upsideDown: boolean;
+  /** Somme des confiances des signes reconnus : sert à départager les deux sens. */
+  score: number;
+}
+
+/** Les cadrages essayés pour un caractère de pièce en main, du plus courant au plus inhabituel. */
+const HAND_LOOKS = [
+  { size: 96, pad: 0.2 },
+  { size: 128, pad: 0.1 },
+  { size: 64, pad: 0.3 },
+  { size: 112, pad: 0.15 },
+];
+
+function rotateGray(g: Gray): Gray {
+  const data = new Uint8ClampedArray(g.data.length);
+  for (let i = 0; i < g.data.length; i++) data[g.data.length - 1 - i] = g.data[i];
+  return { w: g.w, h: g.h, data };
+}
+
+/**
+ * Lit une zone de pièces en main. La zone est découpée en caractères (voir
+ * `segmentHand`), chacun lu comme une case du plateau ; les deux sens sont
+ * essayés, car en haut de l'image les pièces sont souvent renversées, et on
+ * garde celui où l'on a reconnu le plus de choses.
+ */
+export async function readHandZone(source: CanvasImageSource, rect: Rect): Promise<HandReading> {
+  const worker = await loadOcr();
+  // Assez grand pour que les petits chiffres de coin (une douzaine de pixels) gardent leurs traits.
+  const scale = Math.min(6, Math.max(2, 320 / Math.min(rect.w, rect.h)));
+  const gray = toGray(source, rect, scale);
+  let best: HandReading | null = null;
+  for (const upsideDown of [false, true]) {
+    const g = upsideDown ? rotateGray(gray) : gray;
+    const mask = withoutFrames(inkMask(g).mask, g.w, g.h);
+    const { glyphs } = segmentHand(mask, g.w, g.h);
+    const tokens: Token[] = [];
+    let score = 0;
+    const only = (box: { x0: number; y0: number; x1: number; y1: number }) => {
+      const sub = new Uint8Array(mask.length);
+      for (let y = box.y0; y <= box.y1; y++) for (let x = box.x0; x <= box.x1; x++) sub[y * g.w + x] = mask[y * g.w + x];
+      return sub;
+    };
+    for (const glyph of glyphs) {
+      // Une, deux ou trois barres : un numéral que l'OCR rate, on le compte.
+      const bars = countBars(mask, g.w, glyph.box);
+      if (bars !== null) {
+        tokens.push({ kind: 'number', value: bars, confidence: 80 });
+        score += 80;
+        continue;
+      }
+      let read = { char: '', confidence: 0 };
+      for (const look of HAND_LOOKS) {
+        read = await readOnce(worker, maskCanvas(only(glyph.box), g.w, g.h, false, look), HAND_CHARS);
+        if (read.char && read.confidence >= 30) break;
+      }
+      const token = read.char ? tokenOf(read.char, read.confidence) : null;
+      if (token) {
+        tokens.push(token);
+        score += token.confidence;
+      }
+      for (const badge of glyph.badges) {
+        const small = minorityMask(g, badge);
+        const digit = await readOnce(worker, maskCanvas(small.mask, small.w, small.h, false), '23456789');
+        const t = digit.char ? tokenOf(digit.char, digit.confidence) : null;
+        if (t) {
+          tokens.push(t);
+          score += t.confidence * 0.5;
+        }
+      }
+    }
+    const reading: HandReading = { hand: parseTokens(tokens), tokens, upsideDown, score };
+    if (!best || reading.score > best.score) best = reading;
+  }
+  return best!;
 }

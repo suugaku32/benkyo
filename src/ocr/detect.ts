@@ -23,18 +23,36 @@ export function detectBoard(source: CanvasImageSource, width: number, height: nu
   const gray = new Float32Array(w * h);
   for (let i = 0; i < w * h; i++) gray[i] = 0.299 * rgba[i * 4] + 0.587 * rgba[i * 4 + 1] + 0.114 * rgba[i * 4 + 2];
 
-  const cols = new Float32Array(w);
-  const rows = new Float32Array(h);
-  for (let y = 1; y < h - 1; y++) {
-    for (let x = 1; x < w - 1; x++) {
-      const i = y * w + x;
-      cols[x] += Math.abs(gray[i + 1] - gray[i - 1]);
-      rows[y] += Math.abs(gray[i + w] - gray[i - w]);
+  const gray_ = gray;
+  /** Profils des contours, sur une fenêtre de l'image : [x0,x1) × [y0,y1). */
+  const profiles = (x0: number, x1: number, y0: number, y1: number) => {
+    const cols = new Float32Array(w);
+    const rows = new Float32Array(h);
+    for (let y = Math.max(1, y0); y < Math.min(h - 1, y1); y++) {
+      for (let x = Math.max(1, x0); x < Math.min(w - 1, x1); x++) {
+        const i = y * w + x;
+        cols[x] += Math.abs(gray_[i + 1] - gray_[i - 1]);
+        rows[y] += Math.abs(gray_[i + w] - gray_[i - w]);
+      }
     }
-  }
-  const gx = gridLines(cols, Math.round(w / 8));
-  const gy = gridLines(rows, Math.round(h / 8));
+    return { cols, rows };
+  };
+  // Première passe sur toute l'image ; puis chaque axe est relu à l'intérieur de la zone trouvée sur l'autre :
+  // une rangée de pièces en main ou une marge de l'application ne fait pas de traits aussi longs que le plateau.
+  let { cols, rows } = profiles(0, w, 0, h);
+  let gx = gridLines(cols, Math.round(w / 8));
+  let gy = gridLines(rows, Math.round(h / 8));
   if (!gx || !gy) return null;
+  for (let pass = 0; pass < 2; pass++) {
+    const refinedRows = profiles(gx.start, gx.start + 9 * gx.step, 0, h).rows;
+    const nextY = gridLines(refinedRows, Math.round(h / 8));
+    if (!nextY) break;
+    gy = nextY;
+    const refinedCols = profiles(0, w, gy.start, gy.start + 9 * gy.step).cols;
+    const nextX = gridLines(refinedCols, Math.round(w / 8));
+    if (!nextX) break;
+    gx = nextX;
+  }
   const ratio = gx.step / gy.step;
   if (ratio < 0.8 || ratio > 1.25) return null;
   return { x: gx.start / k, y: gy.start / k, w: (9 * gx.step) / k, h: (9 * gy.step) / k };

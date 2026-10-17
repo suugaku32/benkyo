@@ -17,7 +17,7 @@
     "test:book": "tsx test/book.ts",
     "test:style": "tsx test/style.ts",
     "test:strategy": "tsx test/strategy.ts",
-    "test:image": "tsx test/image-position.ts",
+    "test:image": "tsx test/image-position.ts && tsx test/hands.ts",
     "test:tree": "tsx test/tree.ts",
     "test:repertoire": "tsx test/repertoire.ts",
     "book:lishogi": "tsx scripts/build-opening-games.ts"

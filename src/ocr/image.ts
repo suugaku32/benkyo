@@ -153,15 +153,29 @@ export const EMPTY_INK_RATIO = 0.03;
  */
 export function glyphCanvas(cell: Gray, rotate: boolean, look: { size: number; pad: number } = { size: 96, pad: 0.2 }): HTMLCanvasElement {
   const { mask: rawMask } = inkMask(cell);
-  const mask = withoutBorderInk(rawMask, cell.w, cell.h);
+  return maskCanvas(withoutBorderInk(rawMask, cell.w, cell.h), cell.w, cell.h, rotate, look);
+}
+
+/**
+ * Un masque d'encre mis en forme pour la lecture : cadré au plus près, noir
+ * sur blanc, centré dans un carré avec une marge. Sert aux cases du plateau
+ * comme aux caractères des pièces en main.
+ */
+export function maskCanvas(
+  mask: Uint8Array,
+  w: number,
+  h: number,
+  rotate: boolean,
+  look: { size: number; pad: number } = { size: 96, pad: 0.2 },
+): HTMLCanvasElement {
   // Cadre serré autour de l'encre, en ignorant les pixels isolés des bords (liseré, ombre).
-  let minX = cell.w;
-  let minY = cell.h;
+  let minX = w;
+  let minY = h;
   let maxX = -1;
   let maxY = -1;
-  for (let y = 0; y < cell.h; y++) {
-    for (let x = 0; x < cell.w; x++) {
-      if (mask[y * cell.w + x]) {
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (mask[y * w + x]) {
         if (x < minX) minX = x;
         if (x > maxX) maxX = x;
         if (y < minY) minY = y;
@@ -172,8 +186,8 @@ export function glyphCanvas(cell: Gray, rotate: boolean, look: { size: number; p
   if (maxX < 0) {
     minX = 0;
     minY = 0;
-    maxX = cell.w - 1;
-    maxY = cell.h - 1;
+    maxX = w - 1;
+    maxY = h - 1;
   }
   const gw = maxX - minX + 1;
   const gh = maxY - minY + 1;
@@ -194,7 +208,7 @@ export function glyphCanvas(cell: Gray, rotate: boolean, look: { size: number; p
   const img = tctx.createImageData(gw, gh);
   for (let y = 0; y < gh; y++) {
     for (let x = 0; x < gw; x++) {
-      const on = mask[(minY + y) * cell.w + (minX + x)];
+      const on = mask[(minY + y) * w + (minX + x)];
       const v = on ? 0 : 255;
       const o = (y * gw + x) * 4;
       img.data[o] = img.data[o + 1] = img.data[o + 2] = v;
@@ -222,4 +236,30 @@ export function cellRect(board: Rect, col: number, row: number, margin = 0.1): R
   const mx = cw * margin;
   const my = ch * margin;
   return { x: board.x + col * cw + mx, y: board.y + row * ch + my, w: cw - 2 * mx, h: ch - 2 * my };
+}
+
+/**
+ * Le masque d'un petit signe (un chiffre de coin), pris dans les niveaux de gris
+ * plutôt que dans le masque d'encre de la zone : un chiffre en clair sur une
+ * pastille de couleur y deviendrait une pastille pleine. On sépare ici les deux
+ * populations de la boîte (Otsu) et on garde la plus petite — le chiffre —, qu'il
+ * soit plus clair ou plus sombre que son fond.
+ */
+export function minorityMask(gray: Gray, box: { x0: number; y0: number; x1: number; y1: number }): { mask: Uint8Array; w: number; h: number } {
+  const pad = 2;
+  const x0 = Math.max(0, box.x0 - pad);
+  const y0 = Math.max(0, box.y0 - pad);
+  const x1 = Math.min(gray.w - 1, box.x1 + pad);
+  const y1 = Math.min(gray.h - 1, box.y1 + pad);
+  const w = x1 - x0 + 1;
+  const h = y1 - y0 + 1;
+  const values = new Uint8ClampedArray(w * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) values[y * w + x] = gray.data[(y0 + y) * gray.w + (x0 + x)];
+  const t = otsu(values);
+  let low = 0;
+  for (let i = 0; i < values.length; i++) if (values[i] <= t) low++;
+  const lowIsInk = low <= values.length - low;
+  const mask = new Uint8Array(w * h);
+  for (let i = 0; i < values.length; i++) mask[i] = (values[i] <= t) === lowIsInk ? 1 : 0;
+  return { mask, w, h };
 }

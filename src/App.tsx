@@ -315,7 +315,7 @@ export default function App() {
       return;
     }
     // Sans coup, il n'y a rien à analyser — sauf une position de départ donnée (« position sfen … »), qu'on explore.
-    if (parsed.moves.length === 0 && parsed.startSfen.split(' ')[0] === HIRATE_SFEN.split(' ')[0]) {
+    if (parsed.moves.length === 0 && parsed.startSfen.split(' ').slice(0, 3).join(' ') === HIRATE_SFEN.split(' ').slice(0, 3).join(' ')) {
       setError("Aucun coup n'a pu être lu dans ce kifu.");
       return;
     }

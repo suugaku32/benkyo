@@ -3,7 +3,7 @@ import { Board } from './Board';
 import { detectBoard } from '../ocr/detect';
 import type { Rect } from '../ocr/image';
 import { gridToPosition, positionWarnings } from '../ocr/position';
-import { loadOcr, readCell } from '../ocr/recognize';
+import { loadOcr, readCell, readHandZone } from '../ocr/recognize';
 import type { CellReading } from '../ocr/recognize';
 import { pieceGlyph } from '../shogi/notation';
 import type { Position } from '../shogi/position';
@@ -21,6 +21,8 @@ interface Props {
 
 type Step = 'crop' | 'reading' | 'review' | 'error';
 type Corner = 'tl' | 'tr' | 'bl' | 'br';
+/** Ce qu'on déplace dans l'image : le plateau, ou la zone des pièces en main de Sente (b) ou de Gote (w). */
+type Target = 'board' | Color;
 
 const MIN_SIDE = 60;
 
@@ -39,6 +41,54 @@ function resizeFromCorner(orig: Rect, corner: Corner, dx: number, dy: number, bo
   return { x: sx > 0 ? anchorX : anchorX - s, y: sy > 0 ? anchorY : anchorY - s, w: s, h: s };
 }
 
+/** Redimensionne une zone en tirant un coin, sans contrainte de proportions. */
+function resizeFree(orig: Rect, corner: Corner, dx: number, dy: number, bounds: { w: number; h: number }): Rect {
+  let x0 = orig.x;
+  let y0 = orig.y;
+  let x1 = orig.x + orig.w;
+  let y1 = orig.y + orig.h;
+  if (corner[1] === 'l') x0 = Math.min(Math.max(0, x0 + dx), x1 - 20);
+  else x1 = Math.max(Math.min(bounds.w, x1 + dx), x0 + 20);
+  if (corner[0] === 't') y0 = Math.min(Math.max(0, y0 + dy), y1 - 20);
+  else y1 = Math.max(Math.min(bounds.h, y1 + dy), y0 + 20);
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+}
+
+/**
+ * Où poser une zone de pièces en main quand on l'ajoute : dans la plus grande
+ * bande libre autour du plateau. En haut et en bas (les jeux) la zone de Gote va en haut
+ * et celle de Sente en bas ; à gauche et à droite (les livres), Gote à gauche, Sente à droite.
+ */
+function placeZone(board: Rect, image: { w: number; h: number }, color: Color, goteAtBottom: boolean): Rect {
+  const free = {
+    left: board.x,
+    right: image.w - (board.x + board.w),
+    top: board.y,
+    bottom: image.h - (board.y + board.h),
+  };
+  const sides = Math.max(free.left, free.right);
+  const vertical = Math.max(free.top, free.bottom);
+  const cell = board.w / 9;
+  // Un écart d'une demi-case : la plupart des applications et des livres numérotent les colonnes et les rangées
+  // juste hors du plateau, et ces chiffres se liraient comme des pièces ou des nombres.
+  const gap = cell * 0.5;
+  if (vertical >= sides) {
+    const atTop = (color === 'w') !== goteAtBottom;
+    const room = (atTop ? free.top : free.bottom) - gap;
+    const h = Math.max(20, Math.min(room * 0.95, cell * 1.4));
+    return { x: board.x, y: atTop ? board.y - gap - h : board.y + board.h + gap, w: board.w, h };
+  }
+  const atLeft = (color === 'w') !== goteAtBottom;
+  const room = (atLeft ? free.left : free.right) - gap;
+  const w = Math.max(20, Math.min(room * 0.95, cell * 2.4));
+  return {
+    x: atLeft ? board.x - gap - w : board.x + board.w + gap,
+    y: board.y + (atLeft ? 0 : board.h * 0.35),
+    w,
+    h: board.h * 0.65,
+  };
+}
+
 /**
  * Position depuis une image : on cadre le plateau (détecté d'abord tout seul),
  * on le lit case par case, puis on corrige à la main ce que la lecture a mal
@@ -51,6 +101,8 @@ export function ImagePosition({ file, onUse, onClose }: Props) {
   const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
   const [rect, setRect] = useState<Rect | null>(null);
   const [detected, setDetected] = useState<boolean | null>(null);
+  /** Les zones des pièces en main, quand l'utilisateur les a posées. */
+  const [zones, setZones] = useState<{ b?: Rect; w?: Rect }>({});
   const [goteAtBottom, setGoteAtBottom] = useState(false);
   const [step, setStep] = useState<Step>('crop');
   const [progress, setProgress] = useState<{ done: number; label: string }>({ done: 0, label: '' });
@@ -89,14 +141,15 @@ export function ImagePosition({ file, onUse, onClose }: Props) {
 
   // ---- Cadrage : glisser un coin ou le cadre entier.
   const stageRef = useRef<HTMLDivElement>(null);
-  const drag = useRef<{ kind: Corner | 'move'; x: number; y: number; orig: Rect } | null>(null);
+  const drag = useRef<{ target: Target; kind: Corner | 'move'; x: number; y: number; orig: Rect } | null>(null);
 
-  const onPointerDown = (kind: Corner | 'move') => (e: React.PointerEvent) => {
-    if (!rect) return;
+  const onPointerDown = (target: Target, kind: Corner | 'move') => (e: React.PointerEvent) => {
+    const orig = target === 'board' ? rect : zones[target];
+    if (!orig) return;
     e.preventDefault();
     e.stopPropagation();
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
-    drag.current = { kind, x: e.clientX, y: e.clientY, orig: rect };
+    drag.current = { target, kind, x: e.clientX, y: e.clientY, orig };
   };
   const onPointerMove = (e: React.PointerEvent) => {
     const d = drag.current;
@@ -105,14 +158,19 @@ export function ImagePosition({ file, onUse, onClose }: Props) {
     const k = natural.w / stage.clientWidth;
     const dx = (e.clientX - d.x) * k;
     const dy = (e.clientY - d.y) * k;
+    const apply = (r: Rect) => (d.target === 'board' ? setRect(r) : setZones((z) => ({ ...z, [d.target]: r })));
     if (d.kind === 'move') {
-      setRect({
+      apply({
         ...d.orig,
         x: Math.min(Math.max(0, d.orig.x + dx), natural.w - d.orig.w),
         y: Math.min(Math.max(0, d.orig.y + dy), natural.h - d.orig.h),
       });
     } else {
-      setRect(resizeFromCorner(d.orig, d.kind, dx, dy, natural));
+      apply(
+        d.target === 'board'
+          ? resizeFromCorner(d.orig, d.kind, dx, dy, natural)
+          : resizeFree(d.orig, d.kind, dx, dy, natural),
+      );
     }
   };
   const onPointerUp = () => {
@@ -122,6 +180,7 @@ export function ImagePosition({ file, onUse, onClose }: Props) {
   // ---- Lecture.
   const [position, setPosition] = useState<Position | null>(null);
   const [doubtful, setDoubtful] = useState<Square[]>([]);
+  const [handNotes, setHandNotes] = useState<string[]>([]);
 
   const read = async () => {
     const img = imgRef.current;
@@ -143,6 +202,18 @@ export function ImagePosition({ file, onUse, onClose }: Props) {
         grid.push(cells);
       }
       const result = gridToPosition(grid, { goteAtBottom, turn: 'b' });
+      const notes: string[] = [];
+      for (const color of ['b', 'w'] as const) {
+        const zone = zones[color];
+        if (!zone) continue;
+        if (cancelled.current) return;
+        setProgress({ done: 81, label: `Lecture des pièces en main de ${color === 'b' ? 'Sente' : 'Gote'}…` });
+        const reading = await readHandZone(img, zone);
+        result.position.hands[color] = reading.hand;
+        const total = Object.values(reading.hand).reduce((sum, n) => sum + n, 0);
+        notes.push(`${color === 'b' ? '▲' : '△'} : ${total === 0 ? 'rien lu' : `${total} pièce${total > 1 ? 's' : ''} lue${total > 1 ? 's' : ''}`}`);
+      }
+      setHandNotes(notes);
       setPosition(result.position);
       setDoubtful(result.doubtful);
       setSelected(null);
@@ -228,18 +299,65 @@ export function ImagePosition({ file, onUse, onClose }: Props) {
                     width: `${(rect.w / natural.w) * 100}%`,
                     height: `${(rect.h / natural.h) * 100}%`,
                   }}
-                  onPointerDown={onPointerDown('move')}
+                  onPointerDown={onPointerDown('board', 'move')}
                 >
                   {(['tl', 'tr', 'bl', 'br'] as const).map((c) => (
-                    <span key={c} className={`ip-handle ip-handle-${c}`} onPointerDown={onPointerDown(c)} />
+                    <span key={c} className={`ip-handle ip-handle-${c}`} onPointerDown={onPointerDown('board', c)} />
                   ))}
                 </div>
               )}
+              {natural &&
+                (['b', 'w'] as const).map((color) => {
+                  const z = zones[color];
+                  if (!z) return null;
+                  return (
+                    <div
+                      key={color}
+                      className={`ip-zone ip-zone-${color}`}
+                      style={{
+                        left: `${(z.x / natural.w) * 100}%`,
+                        top: `${(z.y / natural.h) * 100}%`,
+                        width: `${(z.w / natural.w) * 100}%`,
+                        height: `${(z.h / natural.h) * 100}%`,
+                      }}
+                      onPointerDown={onPointerDown(color, 'move')}
+                    >
+                      <span className="ip-zone-label">{color === 'b' ? '▲ en main' : '△ en main'}</span>
+                      {(['tl', 'tr', 'bl', 'br'] as const).map((c) => (
+                        <span key={c} className={`ip-handle ip-handle-${c} ip-handle-small`} onPointerDown={onPointerDown(color, c)} />
+                      ))}
+                    </div>
+                  );
+                })}
             </div>
             <label className="ip-check">
               <input type="checkbox" checked={goteAtBottom} onChange={(e) => setGoteAtBottom(e.target.checked)} />
               Le plateau est vu du côté de Gote (les pièces à l'endroit, en bas, sont celles de Gote)
             </label>
+            <p className="ip-hint">
+              Pièces en main : ajoutez leur zone si l'image les montre, sur les côtés du plateau (livres) ou
+              au-dessus et en dessous (jeux). Sinon, vous les réglerez à la main ensuite.
+            </p>
+            <div className="ip-actions">
+              {(['b', 'w'] as const).map((color) => (
+                <button
+                  key={color}
+                  className="btn btn-ghost"
+                  disabled={!rect || !natural}
+                  onClick={() =>
+                    setZones((z) => {
+                      if (z[color]) {
+                        const { [color]: _removed, ...rest } = z;
+                        return rest;
+                      }
+                      return { ...z, [color]: placeZone(rect!, natural!, color, goteAtBottom) };
+                    })
+                  }
+                >
+                  {zones[color] ? '✕ Retirer' : '＋ Ajouter'} la zone des pièces en main de {color === 'b' ? '▲ Sente' : '△ Gote'}
+                </button>
+              ))}
+            </div>
             <div className="ip-actions">
               <button className="btn btn-primary" onClick={read} disabled={!rect}>
                 Lire la position
@@ -323,7 +441,7 @@ export function ImagePosition({ file, onUse, onClose }: Props) {
               </fieldset>
 
               <fieldset className="ip-field">
-                <legend>Pièces en main</legend>
+                <legend>Pièces en main{handNotes.length > 0 && ` (${handNotes.join(' ; ')} — à vérifier)`}</legend>
                 {(['b', 'w'] as const).map((color) => (
                   <div key={color} className="ip-hand">
                     <span className="ip-hand-side">{color === 'b' ? '▲' : '△'}</span>

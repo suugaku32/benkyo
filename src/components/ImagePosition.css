@@ -201,3 +201,39 @@
   border: 1px solid var(--border);
   border-radius: 10px;
 }
+
+/* Zone des pièces en main : un rectangle libre, d'une autre couleur que le plateau. */
+.ip-zone {
+  position: absolute;
+  border: 2px dashed #38c172;
+  background: rgba(56, 193, 114, 0.12);
+  cursor: move;
+}
+
+.ip-zone-w {
+  border-color: #f6ad55;
+  background: rgba(246, 173, 85, 0.12);
+}
+
+.ip-zone-label {
+  position: absolute;
+  left: 4px;
+  top: 2px;
+  font-size: 11px;
+  line-height: 1.2;
+  padding: 1px 5px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+.ip-handle-small {
+  width: 22px;
+  height: 22px;
+}
+
+.ip-handle-small.ip-handle-tl { left: -11px; top: -11px; }
+.ip-handle-small.ip-handle-tr { right: -11px; top: -11px; }
+.ip-handle-small.ip-handle-bl { left: -11px; bottom: -11px; }
+.ip-handle-small.ip-handle-br { right: -11px; bottom: -11px; }
